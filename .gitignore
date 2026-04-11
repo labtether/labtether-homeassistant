@@ -1,6 +1,68 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# Python - bytecode / packaging
 __pycache__/
 *.py[cod]
+*$py.class
 *.egg-info/
-.pytest_cache/
-.DS_Store
+*.egg
 dist/
+build/
+.eggs/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+
+# Python - environments
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+.python-version
+
+# Python - test / coverage / lint caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytype/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+.hypothesis/
+
+# Home Assistant runtime (if devs test locally)
+.storage/
+.cloud/
+home-assistant.log*
+home-assistant_v2.db*
+.HA_VERSION
+
+# Editor / IDE
+.vscode/
+.idea/
+.history/
+.vs/
+*.code-workspace
+*.swp
+*.swo
+*~
+
+# Claude / AI tooling
+CLAUDE.md
+AGENTS.md
+.claude/
+.mcp.json
+.context/
+
+# Superpowers / worktrees / MCP
+.superpowers/
+.worktrees/
+.playwright-mcp/
+.gstack/
