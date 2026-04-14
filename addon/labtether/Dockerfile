@@ -1,5 +1,5 @@
 ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.19
-ARG HUB_IMAGE=ghcr.io/labtether/labtether/labtether:latest
+ARG HUB_IMAGE=ghcr.io/labtether/labtether:latest
 
 FROM ${HUB_IMAGE} AS hub
 
