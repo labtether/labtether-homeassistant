@@ -1,3 +1,9 @@
+<div align="center">
+
+<img src=".github/logo.svg" alt="LabTether" width="80" />
+
+</div>
+
 # LabTether Home Assistant Integration
 
 Custom Home Assistant integration that exposes LabTether-managed infrastructure as HA devices and entities.
