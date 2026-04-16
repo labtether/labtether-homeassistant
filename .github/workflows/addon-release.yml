@@ -84,7 +84,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.PCA }}
 
       - name: Build and push addon image (${{ matrix.arch }})
         uses: docker/build-push-action@v7
