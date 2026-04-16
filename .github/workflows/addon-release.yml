@@ -95,6 +95,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             BUILD_FROM=${{ matrix.base_image }}
+            HUB_IMAGE=ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether:v${{ needs.prepare.outputs.version }}
           tags: |
             ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:${{ needs.prepare.outputs.version }}
             ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:latest
