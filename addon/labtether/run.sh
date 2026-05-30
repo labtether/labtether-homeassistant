@@ -68,7 +68,9 @@ generate_base64_key() {
 }
 
 generate_password() {
-  LC_ALL=C tr -dc 'A-Za-z0-9@#%+_-' < /dev/urandom | head -c 24
+  local token
+  token="$(generate_hex_token)"
+  printf '%s' "${token:0:24}"
 }
 
 require_options_file() {
