@@ -30,7 +30,7 @@ Treat this file as sensitive.
 ## Notes
 
 - This add-on package currently targets the LabTether hub runtime and API endpoints.
-- For Home Assistant entity/sensor integration, continue using the custom integration in `integrations/homeassistant/custom_components/labtether`.
+- For Home Assistant entity/sensor integration, continue using the custom integration in this repository's `custom_components/labtether` directory.
 
 ## Release Automation
 

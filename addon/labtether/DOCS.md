@@ -27,4 +27,4 @@ Default exposed ports:
 ## Notes
 
 This add-on runs the LabTether hub runtime.
-For Home Assistant entities/services integration, install the custom integration in `integrations/homeassistant/custom_components/labtether`.
+For Home Assistant entities/services integration, install the custom integration from this repository's `custom_components/labtether` directory.
