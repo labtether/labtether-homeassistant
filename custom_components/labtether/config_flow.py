@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import logging
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 import voluptuous as vol
 
@@ -70,7 +70,17 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def _normalize_host(host: str) -> str:
-        return host.strip().rstrip("/")
+        trimmed = host.strip().rstrip("/")
+        parsed = urlparse(trimmed)
+        if parsed.scheme and parsed.netloc:
+            normalized = parsed._replace(
+                scheme=parsed.scheme.lower(),
+                netloc=parsed.netloc.lower(),
+                path=parsed.path.rstrip("/"),
+                fragment="",
+            )
+            return urlunparse(normalized).rstrip("/")
+        return trimmed
 
     @staticmethod
     def _host_is_valid(host: str) -> bool:

@@ -200,6 +200,37 @@ async def test_config_flow_aborts_when_host_already_configured():
 
 
 @pytest.mark.asyncio
+async def test_config_flow_duplicate_host_match_is_case_insensitive():
+    """Duplicate hub URLs should match URL host casing differences."""
+    from labtether.config_flow import LabTetherConfigFlow
+
+    existing_entry = MagicMock()
+    existing_entry.data = {CONF_HOST: "https://Lab.Local:8443/"}
+    existing_entry.entry_id = "entry-1"
+
+    flow = LabTetherConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries.async_entries.return_value = [existing_entry]
+
+    with patch("labtether.config_flow.async_get_clientsession", return_value=MagicMock()), \
+         patch("labtether.config_flow.LabTetherApiClient.async_get_setup_preview", new=AsyncMock(return_value={
+             "host_label": "lab.local:8443",
+             "asset_count": 1,
+             "telemetry_asset_count": 1,
+             "switchable_asset_count": 0,
+             "alerts_count": 0,
+             "sources_label": "proxmox",
+         })):
+        result = await flow.async_step_user({
+            CONF_HOST: "https://lab.local:8443",
+            CONF_API_KEY: "token",
+        })
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "already_configured"
+
+
+@pytest.mark.asyncio
 async def test_reconfigure_updates_existing_entry():
     """Reconfigure should update the stored host and title."""
     from labtether.config_flow import LabTetherConfigFlow
