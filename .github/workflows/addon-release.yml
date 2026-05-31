@@ -133,7 +133,7 @@ jobs:
 
       - name: Attach add-on repository tarball to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
 
