@@ -10,7 +10,7 @@ import pytest
 
 import labtether as integration
 from labtether.coordinator import LabTetherData
-from labtether.const import asset_registry_key, hub_registry_key
+from labtether.const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, asset_registry_key, hub_registry_key
 
 
 def test_select_service_target_returns_matching_entry():
@@ -146,3 +146,32 @@ async def test_setup_entry_ensures_hub_device_exists():
 
     assert result is True
     device_registry.async_get_or_create.assert_called_once()
+    assert integration.LabTetherCoordinator.call_args.kwargs["scan_interval_seconds"] == DEFAULT_SCAN_INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_defaults_malformed_stored_scan_interval():
+    """Corrupt stored polling intervals should not crash integration setup."""
+    hass = MagicMock()
+    hass.data = {}
+    hass.services.has_service.return_value = False
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+
+    entry = MagicMock()
+    entry.entry_id = "entry-1"
+    entry.data = {"host": "https://lab.local:8443", "api_key": "token"}
+    entry.options = {CONF_SCAN_INTERVAL: "30abc"}
+    entry.async_on_unload = MagicMock()
+    entry.add_update_listener = MagicMock(return_value=lambda: None)
+
+    coordinator = MagicMock()
+    coordinator.async_config_entry_first_refresh = AsyncMock()
+
+    integration.dr.async_get = MagicMock(return_value=MagicMock())
+    integration._build_client = MagicMock(return_value=MagicMock(host="https://lab.local:8443"))
+    integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
+
+    result = await integration.async_setup_entry(hass, entry)
+
+    assert result is True
+    assert integration.LabTetherCoordinator.call_args.kwargs["scan_interval_seconds"] == DEFAULT_SCAN_INTERVAL
