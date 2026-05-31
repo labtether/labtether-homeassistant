@@ -19,6 +19,9 @@ from labtether.const import (
     CONF_SCAN_INTERVAL,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
+    parse_scan_interval,
 )
 
 
@@ -29,6 +32,16 @@ def test_config_flow_module_imports():
     assert LabTetherConfigFlow is not None
     assert USER_DATA_SCHEMA is not None
     assert IMPORT_OPTIONS_SCHEMA is not None
+
+
+def test_parse_scan_interval_rejects_signed_and_non_ascii_strings():
+    """Scan intervals must be plain ASCII decimal seconds."""
+    assert parse_scan_interval(str(MIN_SCAN_INTERVAL)) == MIN_SCAN_INTERVAL
+    assert parse_scan_interval(str(MAX_SCAN_INTERVAL)) == MAX_SCAN_INTERVAL
+    assert parse_scan_interval("+30") is None
+    assert parse_scan_interval("-30") is None
+    assert parse_scan_interval("30abc") is None
+    assert parse_scan_interval("３0") is None
 
 
 def test_config_flow_data_schema_requires_host_and_key():

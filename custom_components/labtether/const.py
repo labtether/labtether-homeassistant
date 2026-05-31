@@ -52,10 +52,10 @@ def parse_scan_interval(value) -> int | None:
     if isinstance(value, int):
         parsed = value
     elif isinstance(value, str):
-        try:
-            parsed = int(value.strip(), 10)
-        except ValueError:
+        stripped = value.strip()
+        if not stripped.isascii() or not stripped.isdecimal():
             return None
+        parsed = int(stripped, 10)
     else:
         return None
 
