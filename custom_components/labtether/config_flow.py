@@ -27,6 +27,10 @@ from .const import (
     DEFAULT_IMPORT_SWITCHES,
     DEFAULT_ENABLE_RUN_ACTION_SERVICE,
     DEFAULT_SCAN_INTERVAL,
+    MAX_SCAN_INTERVAL,
+    MIN_SCAN_INTERVAL,
+    parse_scan_interval,
+    scan_interval_or_default,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -53,7 +57,7 @@ IMPORT_OPTIONS_SCHEMA = vol.Schema(
         vol.Optional(CONF_IMPORT_SENSORS, default=DEFAULT_IMPORT_SENSORS): bool,
         vol.Optional(CONF_IMPORT_SWITCHES, default=DEFAULT_IMPORT_SWITCHES): bool,
         vol.Optional(CONF_ENABLE_RUN_ACTION_SERVICE, default=DEFAULT_ENABLE_RUN_ACTION_SERVICE): bool,
-        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(vol.Coerce(int), vol.Range(min=5, max=3600)),
+        vol.Optional(CONF_SCAN_INTERVAL, default=DEFAULT_SCAN_INTERVAL): vol.All(vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL)),
     }
 )
 
@@ -201,22 +205,28 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_import_options(self, user_input=None):
         """Choose which Home Assistant surfaces to create."""
+        errors = {}
         if self._pending_data is None or self._preview is None:
             return await self.async_step_user()
 
         if user_input is not None:
-            self._pending_options = {
-                CONF_IMPORT_BINARY_SENSORS: bool(user_input.get(CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS)),
-                CONF_IMPORT_SENSORS: bool(user_input.get(CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS)),
-                CONF_IMPORT_SWITCHES: bool(user_input.get(CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES)),
-                CONF_ENABLE_RUN_ACTION_SERVICE: bool(user_input.get(CONF_ENABLE_RUN_ACTION_SERVICE, DEFAULT_ENABLE_RUN_ACTION_SERVICE)),
-                CONF_SCAN_INTERVAL: int(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
-            }
-            return await self.async_step_review()
+            scan_interval = parse_scan_interval(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            if scan_interval is None:
+                errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
+            else:
+                self._pending_options = {
+                    CONF_IMPORT_BINARY_SENSORS: bool(user_input.get(CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS)),
+                    CONF_IMPORT_SENSORS: bool(user_input.get(CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS)),
+                    CONF_IMPORT_SWITCHES: bool(user_input.get(CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES)),
+                    CONF_ENABLE_RUN_ACTION_SERVICE: bool(user_input.get(CONF_ENABLE_RUN_ACTION_SERVICE, DEFAULT_ENABLE_RUN_ACTION_SERVICE)),
+                    CONF_SCAN_INTERVAL: scan_interval,
+                }
+                return await self.async_step_review()
 
         return self.async_show_form(
             step_id="import_options",
             data_schema=IMPORT_OPTIONS_SCHEMA,
+            errors=errors,
             description_placeholders=self._build_preview_placeholders(),
         )
 
@@ -355,8 +365,15 @@ class LabTetherOptionsFlow(config_entries.OptionsFlow):
 
     async def async_step_init(self, user_input=None):
         """Manage integration options."""
+        errors = {}
         if user_input is not None:
-            return self.async_create_entry(title="", data=user_input)
+            scan_interval = parse_scan_interval(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
+            if scan_interval is None:
+                errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
+            else:
+                options = dict(user_input)
+                options[CONF_SCAN_INTERVAL] = scan_interval
+                return self.async_create_entry(title="", data=options)
 
         options_schema = vol.Schema(
             {
@@ -387,8 +404,8 @@ class LabTetherOptionsFlow(config_entries.OptionsFlow):
                 ): bool,
                 vol.Optional(
                     CONF_SCAN_INTERVAL,
-                    default=int(self.config_entry.options.get(CONF_SCAN_INTERVAL, self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))),
-                ): vol.All(vol.Coerce(int), vol.Range(min=5, max=3600)),
+                    default=scan_interval_or_default(self.config_entry.options.get(CONF_SCAN_INTERVAL, self.config_entry.data.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))),
+                ): vol.All(vol.Coerce(int), vol.Range(min=MIN_SCAN_INTERVAL, max=MAX_SCAN_INTERVAL)),
             }
         )
-        return self.async_show_form(step_id="init", data_schema=options_schema)
+        return self.async_show_form(step_id="init", data_schema=options_schema, errors=errors)

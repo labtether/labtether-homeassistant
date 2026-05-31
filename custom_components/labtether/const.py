@@ -13,6 +13,8 @@ CONF_ENABLE_RUN_ACTION_SERVICE = "enable_run_action_service"
 CONF_SCAN_INTERVAL = "scan_interval_seconds"
 
 DEFAULT_SCAN_INTERVAL = 30  # seconds
+MIN_SCAN_INTERVAL = 5
+MAX_SCAN_INTERVAL = 3600
 DEFAULT_IMPORT_BINARY_SENSORS = True
 DEFAULT_IMPORT_SENSORS = True
 DEFAULT_IMPORT_SWITCHES = True
@@ -41,6 +43,36 @@ TELEMETRY_KINDS = {"hypervisor-node", "vm", "container", "container-host"}
 def entry_pref(entry, key: str, default):
     """Return a config entry preference, favoring options over stored data."""
     return entry.options.get(key, entry.data.get(key, default))
+
+
+def parse_scan_interval(value) -> int | None:
+    """Return a valid scan interval, or None for malformed/out-of-range input."""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, str):
+        try:
+            parsed = int(value.strip(), 10)
+        except ValueError:
+            return None
+    else:
+        return None
+
+    if MIN_SCAN_INTERVAL <= parsed <= MAX_SCAN_INTERVAL:
+        return parsed
+    return None
+
+
+def scan_interval_or_default(value, default: int = DEFAULT_SCAN_INTERVAL) -> int:
+    """Return a safe scan interval, falling back to the integration default."""
+    parsed = parse_scan_interval(value)
+    if parsed is not None:
+        return parsed
+    parsed_default = parse_scan_interval(default)
+    if parsed_default is not None:
+        return parsed_default
+    return DEFAULT_SCAN_INTERVAL
 
 
 def hub_registry_key(entry_id: str) -> str:

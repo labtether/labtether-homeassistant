@@ -49,6 +49,7 @@
     "error": {
       "cannot_connect": "Cannot connect to the LabTether hub. Check the URL, API key, and network path.",
       "invalid_auth": "The LabTether API key was rejected.",
+      "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds.",
       "invalid_url": "Enter a full hub URL starting with http:// or https://.",
       "tls_error": "TLS validation failed. If you intentionally use a self-signed hub certificate, enable the ignore-certificate toggle and try again.",
       "unknown": "An unexpected error occurred."
@@ -73,6 +74,9 @@
           "scan_interval_seconds": "Polling interval (seconds)"
         }
       }
+    },
+    "error": {
+      "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds."
     }
   }
 }

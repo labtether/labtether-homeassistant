@@ -17,6 +17,7 @@ from labtether.const import (
     CONF_IMPORT_SWITCHES,
     CONF_NAME,
     CONF_SCAN_INTERVAL,
+    DEFAULT_SCAN_INTERVAL,
     DOMAIN,
 )
 
@@ -140,6 +141,27 @@ async def test_config_flow_creates_entry_after_review():
 
 
 @pytest.mark.asyncio
+async def test_config_flow_rejects_malformed_scan_interval():
+    """Malformed polling intervals should return a form error instead of crashing."""
+    from labtether.config_flow import LabTetherConfigFlow
+
+    flow = LabTetherConfigFlow()
+    flow.hass = MagicMock()
+    flow._pending_data = {
+        CONF_HOST: "https://lab.local:8443",
+        CONF_API_KEY: "token",
+        CONF_NAME: "My Lab",
+    }
+    flow._preview = {"host_label": "lab.local:8443"}
+
+    result = await flow.async_step_import_options({CONF_SCAN_INTERVAL: "30abc"})
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "import_options"
+    assert result["errors"][CONF_SCAN_INTERVAL] == "invalid_scan_interval"
+
+
+@pytest.mark.asyncio
 async def test_config_flow_surfaces_auth_failures():
     """Authentication failures should map to invalid_auth."""
     from labtether.config_flow import LabTetherConfigFlow
@@ -166,6 +188,43 @@ def test_options_flow_imports():
 
     flow = LabTetherOptionsFlow()
     assert flow is not None
+
+
+@pytest.mark.asyncio
+async def test_options_flow_defaults_malformed_stored_scan_interval():
+    """Corrupt stored polling intervals should not crash the options form."""
+    from labtether.config_flow import LabTetherOptionsFlow
+
+    entry = MagicMock()
+    entry.data = {}
+    entry.options = {CONF_SCAN_INTERVAL: "30abc"}
+
+    flow = LabTetherOptionsFlow()
+    flow.config_entry = entry
+
+    result = await flow.async_step_init()
+    validated = result["data_schema"]({})
+
+    assert result["type"] == "form"
+    assert validated[CONF_SCAN_INTERVAL] == DEFAULT_SCAN_INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_options_flow_rejects_malformed_submitted_scan_interval():
+    """Malformed submitted polling intervals should return a form error."""
+    from labtether.config_flow import LabTetherOptionsFlow
+
+    entry = MagicMock()
+    entry.data = {}
+    entry.options = {}
+
+    flow = LabTetherOptionsFlow()
+    flow.config_entry = entry
+
+    result = await flow.async_step_init({CONF_SCAN_INTERVAL: "1e3"})
+
+    assert result["type"] == "form"
+    assert result["errors"][CONF_SCAN_INTERVAL] == "invalid_scan_interval"
 
 
 @pytest.mark.asyncio

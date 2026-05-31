@@ -22,6 +22,7 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     PLATFORMS,
     entry_pref,
+    scan_interval_or_default,
     TELEMETRY_KINDS,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
@@ -179,7 +180,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass,
         client,
         entry.entry_id,
-        scan_interval_seconds=int(entry_pref(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
+        scan_interval_seconds=scan_interval_or_default(entry_pref(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
     )
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
