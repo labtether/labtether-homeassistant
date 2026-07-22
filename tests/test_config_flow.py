@@ -1,5 +1,7 @@
 """Tests for the LabTether config flow logic."""
 
+import json
+
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -9,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
 from labtether.const import (
     CONF_API_KEY,
+    CONF_ALLOW_INSECURE_HTTP,
     CONF_ENABLE_RUN_ACTION_SERVICE,
     CONF_HOST,
     CONF_IGNORE_CERT_ERRORS,
@@ -53,6 +56,7 @@ def test_config_flow_data_schema_requires_host_and_key():
     assert result["api_key"] == "test"
     assert "name" in result
     assert "ignore_cert_errors" in result
+    assert result[CONF_ALLOW_INSECURE_HTTP] is False
 
 
 def test_config_flow_domain_is_set():
@@ -76,6 +80,41 @@ async def test_config_flow_rejects_invalid_url():
 
     assert result["type"] == "form"
     assert result["errors"]["base"] == "invalid_url"
+
+
+@pytest.mark.parametrize(
+    "host",
+    [
+        "https://user:secret@lab.local:8443",
+        "https://lab.local:8443?token=secret",
+        "https://lab.local:8443#fragment",
+        "https://lab.local:8443/api",
+        "https://lab.local:0",
+        "https://lab.local:99999",
+        "https://lab.local:bad",
+        "https://lab.local\n.evil.test",
+        "http://192.168.1.10:8080",
+        "http://lab.local:8080",
+    ],
+)
+def test_config_flow_rejects_ambiguous_or_insecure_origins(host):
+    """Stored bearer credentials require one unambiguous secure origin."""
+    from labtether.config_flow import LabTetherConfigFlow
+
+    assert LabTetherConfigFlow._host_is_valid(host) is False
+
+
+def test_config_flow_allows_loopback_http_or_explicit_insecure_opt_in():
+    """Plaintext is local-only unless the operator deliberately opts in."""
+    from labtether.config_flow import LabTetherConfigFlow
+
+    assert LabTetherConfigFlow._host_is_valid("http://localhost:8080") is True
+    assert LabTetherConfigFlow._host_is_valid("http://127.0.0.1:8080") is True
+    assert LabTetherConfigFlow._host_is_valid("http://[::1]:8080") is True
+    assert LabTetherConfigFlow._host_is_valid(
+        "http://lab.local:8080",
+        allow_insecure_http=True,
+    ) is True
 
 
 @pytest.mark.asyncio
@@ -193,6 +232,23 @@ async def test_config_flow_surfaces_auth_failures():
 
     assert result["type"] == "form"
     assert result["errors"]["base"] == "invalid_auth"
+    retry_defaults = result["data_schema"]({})
+    assert retry_defaults[CONF_HOST] == "https://lab.local:8443"
+    assert retry_defaults[CONF_API_KEY] == ""
+
+
+def test_review_copy_uses_markdown_list_in_all_english_catalogs():
+    """HA collapses plain newlines, so review fields must be real Markdown rows."""
+    repo_root = Path(__file__).parent.parent
+    for relative_path in (
+        "custom_components/labtether/strings.json",
+        "custom_components/labtether/translations/en.json",
+    ):
+        catalog = json.loads((repo_root / relative_path).read_text())
+        description = catalog["config"]["step"]["review"]["description"]
+        assert description.startswith("- **Title:**")
+        assert "\n- **Hub:**" in description
+        assert "\n- **Polling interval:**" in description
 
 
 def test_options_flow_imports():

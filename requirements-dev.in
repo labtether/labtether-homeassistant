@@ -1,0 +1,10 @@
+# Direct test dependencies. Regenerate the hashed lock with:
+# uv pip compile --universal --python-version 3.12 --generate-hashes \
+#   requirements-dev.in --output-file requirements-dev.txt
+# Home Assistant is intentionally not installed here: tests/conftest.py supplies
+# narrow API doubles before importing the integration, so the former package
+# was unused while pulling a large runtime dependency tree into CI.
+aiohttp==3.14.1
+pytest==9.1.1
+pytest-asyncio==1.4.0
+voluptuous==0.15.2

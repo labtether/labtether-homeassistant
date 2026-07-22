@@ -16,12 +16,12 @@ on:
         default: true
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 jobs:
   prepare:
     runs-on: ubuntu-latest
+    permissions: {}
     outputs:
       version: ${{ steps.meta.outputs.version }}
       owner_lc: ${{ steps.meta.outputs.owner_lc }}
@@ -52,42 +52,66 @@ jobs:
             publish_repo_branch="false"
           fi
 
-          echo "version=${version}" >> "$GITHUB_OUTPUT"
-          echo "owner_lc=${owner_lc}" >> "$GITHUB_OUTPUT"
-          echo "publish_repo_branch=${publish_repo_branch}" >> "$GITHUB_OUTPUT"
+          {
+            echo "version=${version}"
+            echo "owner_lc=${owner_lc}"
+            echo "publish_repo_branch=${publish_repo_branch}"
+          } >> "$GITHUB_OUTPUT"
 
   build-addon-images:
     needs: prepare
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - arch: amd64
             platform: linux/amd64
-            base_image: ghcr.io/home-assistant/amd64-base:3.19
+            base_image: ghcr.io/home-assistant/amd64-base:3.23@sha256:e976b27157be0f89fd5bd4757ec6377d2576963623deb135246d0f3c5742f462
           - arch: aarch64
             platform: linux/arm64
-            base_image: ghcr.io/home-assistant/aarch64-base:3.19
+            base_image: ghcr.io/home-assistant/aarch64-base:3.23@sha256:a75b07ed8fdccb58720bd844ad9da7a8fc454fc3f3b313ff75ca6fae4b5b821e
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v4
+        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
+        uses: docker/setup-buildx-action@bb05f3f5519dd87d3ba754cc423b652a5edd6d2c # v4.2.0
 
       - name: Login to GHCR
-        uses: docker/login-action@v4
+        uses: docker/login-action@af1e73f918a031802d376d3c8bbc3fe56130a9b0 # v4.4.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.PCA }}
+          password: ${{ github.token }}
+
+      - name: Resolve immutable hub image
+        id: hub-image
+        env:
+          HUB_IMAGE_TAG: ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether:v${{ needs.prepare.outputs.version }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "${HUB_IMAGE_TAG}" --format '{{.Manifest.Digest}}')"
+          if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "failed to resolve an immutable hub image digest" >&2
+            exit 1
+          fi
+          echo "reference=${HUB_IMAGE_TAG}@${digest}" >> "${GITHUB_OUTPUT}"
 
       - name: Build and push addon image (${{ matrix.arch }})
-        uses: docker/build-push-action@v7
+        id: build
+        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
         with:
           context: .
           file: addon/labtether/Dockerfile
@@ -95,7 +119,7 @@ jobs:
           platforms: ${{ matrix.platform }}
           build-args: |
             BUILD_FROM=${{ matrix.base_image }}
-            HUB_IMAGE=ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether:v${{ needs.prepare.outputs.version }}
+            HUB_IMAGE=${{ steps.hub-image.outputs.reference }}
           tags: |
             ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:${{ needs.prepare.outputs.version }}
             ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:latest
@@ -104,13 +128,29 @@ jobs:
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          provenance: mode=max
+          sbom: true
+
+      - name: Attest pushed add-on image provenance
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-name: ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
 
   package-addon-repository:
     needs: [prepare, build-addon-images]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+      artifact-metadata: write
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
 
       - name: Package Home Assistant repository layout
         env:
@@ -123,7 +163,7 @@ jobs:
             --output-dir "./dist/ha-addon-repository"
 
       - name: Upload add-on repository artifact
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
           name: homeassistant-addon-repository-${{ needs.prepare.outputs.version }}
           path: |
@@ -131,15 +171,20 @@ jobs:
             dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
           if-no-files-found: error
 
+      - name: Attest add-on repository provenance
+        uses: actions/attest@a1948c3f048ba23858d222213b7c278aabede763 # v4.1.1
+        with:
+          subject-path: dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
+
       - name: Attach add-on repository tarball to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@v3
+        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3
         with:
           files: dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
 
       - name: Publish hosted add-on repository branch
         if: needs.prepare.outputs.publish_repo_branch == 'true'
-        uses: peaceiris/actions-gh-pages@v4
+        uses: peaceiris/actions-gh-pages@329bcc8f12caed2cefe5a5b80781499a6f3b361b # v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_branch: homeassistant-addon-repo

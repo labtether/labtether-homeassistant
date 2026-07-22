@@ -33,6 +33,16 @@ def test_asset_status_online():
     assert sensor.is_on is True
 
 
+@pytest.mark.parametrize("status", ["running", "RUNNING", "up", "active", "healthy"])
+def test_asset_active_runtime_statuses_are_on(status):
+    """Connector-native active states should map to connectivity on."""
+    coord = _make_coordinator([
+        {"id": "a1", "name": "Node1", "type": "vm", "source": "proxmox", "status": status, "metadata": {}}
+    ])
+    sensor = LabTetherAssetStatusSensor(coord, "a1")
+    assert sensor.is_on is True
+
+
 def test_asset_status_offline():
     """Asset with status 'offline' should be off."""
     coord = _make_coordinator([{"id": "a1", "name": "Node1", "type": "hypervisor-node", "source": "proxmox", "status": "offline", "metadata": {}}])

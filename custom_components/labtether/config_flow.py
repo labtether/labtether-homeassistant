@@ -10,11 +10,12 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import LabTetherApiClient, LabTetherApiError
+from .api import LabTetherApiClient, LabTetherApiError, hub_origin_is_valid
 from .const import (
     DOMAIN,
     CONF_HOST,
     CONF_API_KEY,
+    CONF_ALLOW_INSECURE_HTTP,
     CONF_NAME,
     CONF_IGNORE_CERT_ERRORS,
     CONF_IMPORT_BINARY_SENSORS,
@@ -25,6 +26,7 @@ from .const import (
     DEFAULT_IMPORT_BINARY_SENSORS,
     DEFAULT_IMPORT_SENSORS,
     DEFAULT_IMPORT_SWITCHES,
+    DEFAULT_ALLOW_INSECURE_HTTP,
     DEFAULT_ENABLE_RUN_ACTION_SERVICE,
     DEFAULT_SCAN_INTERVAL,
     MAX_SCAN_INTERVAL,
@@ -44,8 +46,28 @@ def _connection_schema(defaults: dict | None = None) -> vol.Schema:
             vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")): str,
             vol.Optional(CONF_NAME, default=defaults.get(CONF_NAME, "")): str,
             vol.Optional(CONF_IGNORE_CERT_ERRORS, default=bool(defaults.get(CONF_IGNORE_CERT_ERRORS, False))): bool,
+            vol.Optional(
+                CONF_ALLOW_INSECURE_HTTP,
+                default=bool(defaults.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)),
+            ): bool,
         }
     )
+
+
+def _connection_retry_defaults(user_input: dict | None = None) -> dict:
+    """Preserve non-secret form values while requiring the key again."""
+    user_input = user_input or {}
+    return {
+        CONF_HOST: user_input.get(CONF_HOST, ""),
+        CONF_API_KEY: "",
+        CONF_NAME: user_input.get(CONF_NAME, ""),
+        CONF_IGNORE_CERT_ERRORS: bool(
+            user_input.get(CONF_IGNORE_CERT_ERRORS, False)
+        ),
+        CONF_ALLOW_INSECURE_HTTP: bool(
+            user_input.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
+        ),
+    }
 
 
 USER_DATA_SCHEMA = _connection_schema()
@@ -76,20 +98,37 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _normalize_host(host: str) -> str:
         trimmed = host.strip().rstrip("/")
         parsed = urlparse(trimmed)
-        if parsed.scheme and parsed.netloc:
+        if (
+            parsed.scheme
+            and parsed.hostname
+            and parsed.username is None
+            and parsed.password is None
+        ):
+            hostname = parsed.hostname.lower()
+            if ":" in hostname:
+                hostname = f"[{hostname}]"
+            try:
+                port = parsed.port
+            except ValueError:
+                return trimmed
+            netloc = hostname if port is None else f"{hostname}:{port}"
             normalized = parsed._replace(
                 scheme=parsed.scheme.lower(),
-                netloc=parsed.netloc.lower(),
-                path=parsed.path.rstrip("/"),
+                netloc=netloc,
+                path="",
+                params="",
+                query="",
                 fragment="",
             )
             return urlunparse(normalized).rstrip("/")
         return trimmed
 
     @staticmethod
-    def _host_is_valid(host: str) -> bool:
-        parsed = urlparse(host)
-        return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+    def _host_is_valid(host: str, *, allow_insecure_http: bool = False) -> bool:
+        return hub_origin_is_valid(
+            host,
+            allow_insecure_http=allow_insecure_http,
+        )
 
     @staticmethod
     def _default_title(data: dict, preview: dict | None) -> str:
@@ -118,6 +157,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             "title": self._default_title(pending_data, preview),
             "host": str(pending_data.get(CONF_HOST, "")),
             "ignore_cert_errors": "Enabled" if pending_data.get(CONF_IGNORE_CERT_ERRORS) else "Disabled",
+            "allow_insecure_http": "Enabled" if pending_data.get(CONF_ALLOW_INSECURE_HTTP) else "Disabled",
             "import_status_entities": "Yes" if pending_options.get(CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS) else "No",
             "import_telemetry_sensors": "Yes" if pending_options.get(CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS) else "No",
             "import_power_switches": "Yes" if pending_options.get(CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES) else "No",
@@ -155,9 +195,16 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return "cannot_connect"
 
     async def _async_preview_connection(self, user_input: dict) -> tuple[dict | None, str | None]:
-        normalized_host = self._normalize_host(user_input[CONF_HOST])
-        if not self._host_is_valid(normalized_host):
+        candidate_host = user_input[CONF_HOST].strip()
+        allow_insecure_http = bool(
+            user_input.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
+        )
+        if not self._host_is_valid(
+            candidate_host,
+            allow_insecure_http=allow_insecure_http,
+        ):
             return None, "invalid_url"
+        normalized_host = self._normalize_host(candidate_host)
 
         try:
             session = async_get_clientsession(self.hass)
@@ -166,6 +213,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 api_key=user_input[CONF_API_KEY],
                 session=session,
                 ignore_cert_errors=bool(user_input.get(CONF_IGNORE_CERT_ERRORS)),
+                allow_insecure_http=allow_insecure_http,
             )
             preview = await client.async_get_setup_preview()
             data = {
@@ -173,6 +221,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_API_KEY: user_input[CONF_API_KEY],
                 CONF_NAME: user_input.get(CONF_NAME, "").strip(),
                 CONF_IGNORE_CERT_ERRORS: bool(user_input.get(CONF_IGNORE_CERT_ERRORS, False)),
+                CONF_ALLOW_INSECURE_HTTP: allow_insecure_http,
             }
             return {"data": data, "preview": preview}, None
         except LabTetherApiError as err:
@@ -184,11 +233,13 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     async def async_step_user(self, user_input=None):
         """Handle the connection step."""
         errors = {}
+        form_defaults = {}
 
         if user_input is not None:
             preview_result, error = await self._async_preview_connection(user_input)
             if error:
                 errors["base"] = error
+                form_defaults = _connection_retry_defaults(user_input)
             else:
                 data = preview_result["data"]
                 if self._entry_for_host(data[CONF_HOST]) is not None:
@@ -199,7 +250,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
-            data_schema=_connection_schema(),
+            data_schema=_connection_schema(form_defaults),
             errors=errors,
         )
 
@@ -280,7 +331,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         defaults = {
             CONF_HOST: entry.data.get(CONF_HOST, ""),
-            CONF_API_KEY: entry.data.get(CONF_API_KEY, ""),
+            CONF_API_KEY: "",
             CONF_NAME: entry.data.get(CONF_NAME, ""),
             CONF_IGNORE_CERT_ERRORS: bool(
                 entry.options.get(
@@ -288,7 +339,12 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     entry.data.get(CONF_IGNORE_CERT_ERRORS, False),
                 )
             ),
+            CONF_ALLOW_INSECURE_HTTP: bool(
+                entry.data.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
+            ),
         }
+        if user_input is not None and errors:
+            defaults = _connection_retry_defaults(user_input)
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=_connection_schema(defaults),
@@ -317,6 +373,9 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                 CONF_API_KEY: user_input[CONF_API_KEY],
                 CONF_NAME: entry.data.get(CONF_NAME, ""),
                 CONF_IGNORE_CERT_ERRORS: bool(user_input.get(CONF_IGNORE_CERT_ERRORS, False)),
+                CONF_ALLOW_INSECURE_HTTP: bool(
+                    entry.data.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
+                ),
             }
             preview_result, error = await self._async_preview_connection(reauth_data)
             if error:

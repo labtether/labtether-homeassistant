@@ -5,7 +5,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
 from labtether.coordinator import LabTetherData
-from labtether.const import DOMAIN, CONTROLLABLE_KINDS, TELEMETRY_KINDS, EXCLUDED_SOURCE
+from labtether.const import (
+    CONTROLLABLE_KINDS,
+    DOMAIN,
+    EXCLUDED_SOURCE,
+    POWER_ACTION_SOURCES,
+    TELEMETRY_KINDS,
+)
 
 
 def test_domain_is_labtether():
@@ -53,8 +59,13 @@ def test_data_model_full_workflow():
     assert len(data.assets) == 3
     assert data.firing_alerts_count == 2
 
-    # Verify which assets get switches (only VMs/containers)
-    switchable = [a for a in data.assets if a["type"] in CONTROLLABLE_KINDS]
+    # Verify which assets get switches (supported VM/container sources only)
+    switchable = [
+        asset
+        for asset in data.assets
+        if asset["type"] in CONTROLLABLE_KINDS
+        and asset["source"] in POWER_ACTION_SOURCES
+    ]
     assert len(switchable) == 1
     assert switchable[0]["id"] == "pve-vm-100"
 

@@ -9,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
 from labtether.switch import LabTetherPowerSwitch, async_setup_entry
 from labtether.coordinator import LabTetherData
+from homeassistant.exceptions import HomeAssistantError
 
 
 def _make_coordinator(assets, metrics=None):
@@ -26,6 +27,16 @@ def _make_coordinator(assets, metrics=None):
 def test_power_switch_is_on_when_online():
     """Switch should be on when asset status is online/running."""
     coord = _make_coordinator([{"id": "vm-1", "name": "TestVM", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}])
+    switch = LabTetherPowerSwitch(coord, "vm-1")
+    assert switch.is_on is True
+
+
+@pytest.mark.parametrize("status", ["running", "RUNNING", "up", "active", "healthy"])
+def test_power_switch_active_runtime_statuses_are_on(status):
+    """Power state should match the normalized active connectivity states."""
+    coord = _make_coordinator([
+        {"id": "vm-1", "name": "TestVM", "type": "vm", "source": "proxmox", "status": status, "metadata": {}}
+    ])
     switch = LabTetherPowerSwitch(coord, "vm-1")
     assert switch.is_on is True
 
@@ -63,6 +74,19 @@ async def test_turn_off_calls_stop_action():
         connector_id="proxmox",
         action_id="vm.stop",
     )
+
+
+@pytest.mark.asyncio
+async def test_stale_power_switch_fails_instead_of_reporting_success():
+    """A removed asset must not make a switch mutation look successful."""
+    coord = _make_coordinator([])
+    switch = LabTetherPowerSwitch(coord, "missing")
+
+    with pytest.raises(HomeAssistantError, match="no longer available"):
+        await switch.async_turn_on()
+
+    coord.api.async_run_action.assert_not_awaited()
+    coord.async_request_refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio
