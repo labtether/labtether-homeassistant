@@ -162,6 +162,7 @@ def main() -> None:
         raise RuntimeError("LTQA_TLS_CERT and LTQA_TLS_KEY must be configured together")
     if tls_cert:
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
         context.load_cert_chain(tls_cert, tls_key)
         server.socket = context.wrap_socket(server.socket, server_side=True)
     server.serve_forever()

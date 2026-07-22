@@ -124,6 +124,25 @@ if [[ "${hub_uid}" != "10001" ]]; then
   exit 1
 fi
 
+# Seeing the hub process is not enough to prove startup has finished: the hub
+# creates its automatic TLS key material after the process becomes visible.
+# Wait for the HTTPS health endpoint before inspecting those generated files so
+# this gate validates their final ownership instead of racing first boot.
+https_ready="false"
+for _ in $(seq 1 30); do
+  if docker exec --user 10001:10001 "${CONTAINER_NAME}" \
+    wget --no-check-certificate --quiet --output-document=- \
+    https://127.0.0.1:8443/healthz 2>/dev/null | grep -q '"status":"ok"'; then
+    https_ready="true"
+    break
+  fi
+  sleep 1
+done
+if [[ "${https_ready}" != "true" ]]; then
+  echo "hub HTTPS health endpoint did not become ready" >&2
+  exit 1
+fi
+
 assert_mode_owner() {
   local path="$1"
   local expected="$2"
@@ -154,21 +173,6 @@ assert_mode_owner /ca/ca.crt 600:10001:10001
 
 if docker exec "${CONTAINER_NAME}" test -e /usr/bin/tempio; then
   echo "unused vulnerable tempio binary is still present" >&2
-  exit 1
-fi
-
-https_ready="false"
-for _ in $(seq 1 30); do
-  if docker exec --user 10001:10001 "${CONTAINER_NAME}" \
-    wget --no-check-certificate --quiet --output-document=- \
-    https://127.0.0.1:8443/healthz 2>/dev/null | grep -q '"status":"ok"'; then
-    https_ready="true"
-    break
-  fi
-  sleep 1
-done
-if [[ "${https_ready}" != "true" ]]; then
-  echo "hub HTTPS health endpoint did not become ready" >&2
   exit 1
 fi
 
