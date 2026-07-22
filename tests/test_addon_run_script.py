@@ -71,7 +71,7 @@ def test_ci_actions_and_python_test_dependencies_are_immutable():
     assert "aiohttp==3.14.1" in requirements
     assert "pytest==9.1.1" in requirements
     assert "pytest-asyncio==1.4.0" in requirements
-    assert "voluptuous==0.15.2" in requirements
+    assert "voluptuous==0.16.0" in requirements
 
 
 def test_dependabot_covers_all_supply_chain_ecosystems_with_cooldown():
