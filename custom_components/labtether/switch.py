@@ -7,9 +7,11 @@ import logging
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    ACTIVE_ASSET_STATUSES,
     DOMAIN,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
@@ -91,42 +93,42 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
         asset = self._asset
         if asset is None:
             return False
-        return asset.get("status") in ("online", "running")
+        status = str(asset.get("status", "")).strip().lower()
+        return status in ACTIVE_ASSET_STATUSES
 
     async def async_turn_on(self, **kwargs) -> None:
         """Start the VM/container."""
-        asset = self._asset
-        if asset is None:
-            return
-        source = asset.get("source", "")
-        actions = _ACTION_MAP.get(source)
-        if actions is None:
-            _LOGGER.warning("No action map for source %r on asset %s", source, self._asset_id)
-            return
-        if "start" in actions:
-            await self.coordinator.api.async_run_action(
-                asset_id=self._asset_id,
-                action_type="connector_action",
-                connector_id=actions["connector_id"],
-                action_id=actions["start"],
-            )
-            await self.coordinator.async_request_refresh()
+        actions = self._power_actions()
+        await self.coordinator.api.async_run_action(
+            asset_id=self._asset_id,
+            action_type="connector_action",
+            connector_id=actions["connector_id"],
+            action_id=actions["start"],
+        )
+        await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Stop the VM/container."""
+        actions = self._power_actions()
+        await self.coordinator.api.async_run_action(
+            asset_id=self._asset_id,
+            action_type="connector_action",
+            connector_id=actions["connector_id"],
+            action_id=actions["stop"],
+        )
+        await self.coordinator.async_request_refresh()
+
+    def _power_actions(self) -> dict[str, str]:
+        """Return the current asset action contract or fail visibly."""
         asset = self._asset
         if asset is None:
-            return
-        source = asset.get("source", "")
+            raise HomeAssistantError(
+                f"LabTether asset {self._asset_id!r} is no longer available"
+            )
+        source = str(asset.get("source", "")).strip().lower()
         actions = _ACTION_MAP.get(source)
         if actions is None:
-            _LOGGER.warning("No action map for source %r on asset %s", source, self._asset_id)
-            return
-        if "stop" in actions:
-            await self.coordinator.api.async_run_action(
-                asset_id=self._asset_id,
-                action_type="connector_action",
-                connector_id=actions["connector_id"],
-                action_id=actions["stop"],
+            raise HomeAssistantError(
+                f"LabTether asset {self._asset_id!r} no longer has a supported power source"
             )
-            await self.coordinator.async_request_refresh()
+        return actions

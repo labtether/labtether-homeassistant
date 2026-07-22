@@ -1,0 +1,5 @@
+# The Home Assistant base keeps a root s6 init and the add-on entrypoint needs
+# root briefly to prepare Supervisor-mounted volumes and start local Postgres.
+# run.sh then execs the hub through su-exec as fixed UID/GID 10001; the
+# container security test asserts the live hub process is never root.
+AVD-DS-0002

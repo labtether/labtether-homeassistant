@@ -30,6 +30,7 @@ _HA_MODULES = [
     "homeassistant.helpers.device_registry",
     "homeassistant.helpers.entity_registry",
     "homeassistant.helpers.entity_platform",
+    "homeassistant.helpers.service",
     "homeassistant.helpers.update_coordinator",
     "homeassistant.components",
     "homeassistant.components.binary_sensor",
@@ -56,6 +57,7 @@ _ha_helpers.config_validation = sys.modules["homeassistant.helpers.config_valida
 _ha_helpers.device_registry = sys.modules["homeassistant.helpers.device_registry"]
 _ha_helpers.entity_registry = sys.modules["homeassistant.helpers.entity_registry"]
 _ha_helpers.entity_platform = sys.modules["homeassistant.helpers.entity_platform"]
+_ha_helpers.service = sys.modules["homeassistant.helpers.service"]
 _ha_helpers.update_coordinator = sys.modules["homeassistant.helpers.update_coordinator"]
 _ha_components = sys.modules["homeassistant.components"]
 _ha_components.binary_sensor = sys.modules["homeassistant.components.binary_sensor"]
@@ -188,6 +190,7 @@ ha_entity_registry.async_entries_for_config_entry = lambda registry, entry_id: [
 
 ha_exceptions = sys.modules["homeassistant.exceptions"]
 ha_exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})
+ha_exceptions.HomeAssistantError = type("HomeAssistantError", (Exception,), {})
 
 ha_cv = sys.modules["homeassistant.helpers.config_validation"]
 ha_cv.string = str

@@ -3,12 +3,13 @@
     "step": {
       "user": {
         "title": "Connect to LabTether Hub",
-        "description": "Connect Home Assistant to an existing LabTether hub. Use the hub URL and an API key with access to assets, metrics, alerts, and actions. Enable the TLS toggle only when you intentionally trust a self-signed hub certificate.",
+        "description": "Connect Home Assistant to an existing LabTether hub. HTTPS is required except for loopback addresses. Enable insecure HTTP only when you explicitly accept sending the API key without transport encryption; use the TLS toggle only when you intentionally trust a self-signed certificate.",
         "data": {
           "host": "Hub URL",
           "api_key": "API Key",
           "name": "Display Name",
-          "ignore_cert_errors": "Ignore TLS certificate errors"
+          "ignore_cert_errors": "Ignore TLS certificate errors",
+          "allow_insecure_http": "Allow API key over insecure HTTP"
         }
       },
       "import_options": {
@@ -24,7 +25,7 @@
       },
       "review": {
         "title": "Review Setup",
-        "description": "Title: {title}\nHub: {host}\nIgnore TLS certificate errors: {ignore_cert_errors}\nImport status entities: {import_status_entities}\nImport telemetry sensors: {import_telemetry_sensors}\nImport power switches: {import_power_switches}\nEnable run_action service: {enable_run_action_service}\nPolling interval: {scan_interval}s\nPreview: {asset_count} assets, {alerts_count} active alerts.",
+        "description": "- **Title:** {title}\n- **Hub:** {host}\n- **Ignore TLS certificate errors:** {ignore_cert_errors}\n- **Allow insecure HTTP:** {allow_insecure_http}\n- **Import status entities:** {import_status_entities}\n- **Import telemetry sensors:** {import_telemetry_sensors}\n- **Import power switches:** {import_power_switches}\n- **Enable run_action service:** {enable_run_action_service}\n- **Polling interval:** {scan_interval}s\n- **Preview:** {asset_count} assets, {alerts_count} active alerts.",
         "data": {}
       },
       "reconfigure": {
@@ -34,7 +35,8 @@
           "host": "Hub URL",
           "api_key": "API Key",
           "name": "Display Name",
-          "ignore_cert_errors": "Ignore TLS certificate errors"
+          "ignore_cert_errors": "Ignore TLS certificate errors",
+          "allow_insecure_http": "Allow API key over insecure HTTP"
         }
       },
       "reauth_confirm": {
@@ -50,7 +52,7 @@
       "cannot_connect": "Cannot connect to the LabTether hub. Check the URL, API key, and network path.",
       "invalid_auth": "The LabTether API key was rejected.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds.",
-      "invalid_url": "Enter a full hub URL starting with http:// or https://.",
+      "invalid_url": "Enter a credential-free HTTPS hub origin. Plain HTTP requires loopback or explicit insecure-HTTP consent.",
       "tls_error": "TLS validation failed. If you intentionally use a self-signed hub certificate, enable the ignore-certificate toggle and try again.",
       "unknown": "An unexpected error occurred."
     },

@@ -65,4 +65,5 @@ AGENTS.md
 .superpowers/
 .worktrees/
 .playwright-mcp/
+.playwright-cli/
 .gstack/

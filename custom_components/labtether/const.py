@@ -6,6 +6,7 @@ CONF_HOST = "host"
 CONF_API_KEY = "api_key"
 CONF_NAME = "name"
 CONF_IGNORE_CERT_ERRORS = "ignore_cert_errors"
+CONF_ALLOW_INSECURE_HTTP = "allow_insecure_http"
 CONF_IMPORT_BINARY_SENSORS = "import_status_entities"
 CONF_IMPORT_SENSORS = "import_telemetry_sensors"
 CONF_IMPORT_SWITCHES = "import_power_switches"
@@ -18,7 +19,18 @@ MAX_SCAN_INTERVAL = 3600
 DEFAULT_IMPORT_BINARY_SENSORS = True
 DEFAULT_IMPORT_SENSORS = True
 DEFAULT_IMPORT_SWITCHES = True
-DEFAULT_ENABLE_RUN_ACTION_SERVICE = True
+DEFAULT_ENABLE_RUN_ACTION_SERVICE = False
+DEFAULT_ALLOW_INSECURE_HTTP = False
+
+# The generic service deliberately exposes only the same bounded power actions
+# represented by integration switch entities. Arbitrary connector actions can
+# carry destructive parameters and must be initiated through the LabTether UI,
+# where the hub can present action-specific authorization and confirmation.
+RUN_ACTION_ALLOWLIST = {
+    "proxmox": frozenset({"vm.start", "vm.stop"}),
+    "truenas": frozenset({"vm.start", "vm.stop"}),
+    "docker": frozenset({"container.start", "container.stop"}),
+}
 
 # LabTether API endpoints
 API_ASSETS = "/assets"
@@ -32,6 +44,7 @@ PLATFORMS = ["sensor", "binary_sensor", "switch"]
 # Asset kinds that support power control (start/stop)
 CONTROLLABLE_KINDS = {"vm", "container"}
 POWER_ACTION_SOURCES = {"proxmox", "truenas", "docker"}
+ACTIVE_ASSET_STATUSES = frozenset({"online", "running", "up", "active", "healthy"})
 
 # Asset source to exclude (prevents circular entity mirroring)
 EXCLUDED_SOURCE = "home-assistant"

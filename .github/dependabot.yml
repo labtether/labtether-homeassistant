@@ -1,0 +1,25 @@
+version: 2
+
+# Dependabot cooldowns do not delay security updates. Routine version updates
+# wait seven days so newly published releases have time to settle upstream.
+updates:
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: docker
+    directory: "/addon/labtether"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7

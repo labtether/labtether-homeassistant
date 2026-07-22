@@ -10,7 +10,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
-from .const import DOMAIN, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS, entry_pref
+from .const import (
+    ACTIVE_ASSET_STATUSES,
+    DOMAIN,
+    CONF_IMPORT_BINARY_SENSORS,
+    DEFAULT_IMPORT_BINARY_SENSORS,
+    entry_pref,
+)
 from .coordinator import LabTetherCoordinator
 from .entity import LabTetherEntity, LabTetherHubEntity
 
@@ -90,4 +96,5 @@ class LabTetherAssetStatusSensor(LabTetherEntity, BinarySensorEntity):
         asset = self._asset
         if asset is None:
             return False
-        return asset.get("status") == "online"
+        status = str(asset.get("status", "")).strip().lower()
+        return status in ACTIVE_ASSET_STATUSES

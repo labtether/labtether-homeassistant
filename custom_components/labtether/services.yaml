@@ -1,6 +1,6 @@
 run_action:
   name: Run Action
-  description: Run an action on a LabTether-managed asset.
+  description: Run an approved power action on a LabTether-managed asset. Administrator only.
   fields:
     asset_id:
       name: Asset ID
@@ -10,10 +10,17 @@ run_action:
         text:
     action:
       name: Action
-      description: "The action to run (e.g. vm.start, vm.stop, snapshot.create)."
+      description: "An approved power action (vm.start, vm.stop, container.start, or container.stop)."
       required: true
       selector:
         text:
+    entry_id:
+      name: Hub entry ID
+      description: "The Home Assistant config entry ID for the target LabTether hub. Required when more than one hub exposes the same asset ID."
+      required: false
+      selector:
+        config_entry:
+          integration: labtether
     connector_id:
       name: Connector ID
       description: "The connector that owns the action (e.g. proxmox, truenas)."

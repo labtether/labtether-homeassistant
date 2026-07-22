@@ -1,6 +1,6 @@
 """Runtime behavior tests for the LabTether integration bootstrap."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, call
 
 import sys
 from pathlib import Path
@@ -10,7 +10,24 @@ import pytest
 
 import labtether as integration
 from labtether.coordinator import LabTetherData
-from labtether.const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, asset_registry_key, hub_registry_key
+from labtether.const import (
+    CONF_ENABLE_RUN_ACTION_SERVICE,
+    CONF_IMPORT_BINARY_SENSORS,
+    CONF_IMPORT_SENSORS,
+    CONF_IMPORT_SWITCHES,
+    CONF_SCAN_INTERVAL,
+    DEFAULT_ENABLE_RUN_ACTION_SERVICE,
+    DEFAULT_SCAN_INTERVAL,
+    asset_registry_key,
+    hub_registry_key,
+)
+
+
+def _run_action_entry(enabled=True):
+    entry = MagicMock()
+    entry.options = {CONF_ENABLE_RUN_ACTION_SERVICE: enabled}
+    entry.data = {}
+    return entry
 
 
 def test_select_service_target_returns_matching_entry():
@@ -38,6 +55,185 @@ def test_select_service_target_returns_matching_entry():
     selected = integration._select_service_target(hass, "b1")
 
     assert selected["coordinator"] is coordinator_b
+
+
+def test_select_service_target_rejects_ambiguous_asset_without_entry_id():
+    """Duplicate cross-hub asset IDs must not route to iteration order."""
+    coordinator_a = MagicMock()
+    coordinator_a.data = LabTetherData(
+        assets=[{"id": "shared", "name": "A", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+        metrics={},
+        firing_alerts_count=0,
+    )
+    coordinator_b = MagicMock()
+    coordinator_b.data = LabTetherData(
+        assets=[{"id": "shared", "name": "B", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+        metrics={},
+        firing_alerts_count=0,
+    )
+    hass = MagicMock()
+    hass.data = {
+        "labtether": {
+            "entry-a": {"coordinator": coordinator_a},
+            "entry-b": {"coordinator": coordinator_b},
+        }
+    }
+
+    with pytest.raises(integration.vol.Invalid, match="provide entry_id"):
+        integration._select_service_target(hass, "shared")
+
+    selected = integration._select_service_target(hass, "shared", "entry-b")
+    assert selected["coordinator"] is coordinator_b
+
+
+def test_run_action_service_is_disabled_by_default():
+    assert DEFAULT_ENABLE_RUN_ACTION_SERVICE is False
+
+
+@pytest.mark.asyncio
+async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(monkeypatch):
+    coordinator = MagicMock()
+    coordinator.data = LabTetherData(
+        assets=[{"id": "vm-1", "name": "VM", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+        metrics={},
+        firing_alerts_count=0,
+    )
+    client = MagicMock()
+    client.async_run_action = AsyncMock()
+    hass = MagicMock()
+    hass.services.has_service.return_value = False
+    hass.data = {
+        "labtether": {
+            "entry": {
+                "coordinator": coordinator,
+                "client": client,
+                "entry": _run_action_entry(),
+            }
+        }
+    }
+    register_admin_service = MagicMock()
+    monkeypatch.setattr(integration, "async_register_admin_service", register_admin_service)
+
+    integration._register_run_action_service(hass)
+
+    register_admin_service.assert_called_once()
+    handler = register_admin_service.call_args.args[3]
+    allowed_call = MagicMock()
+    allowed_call.data = {
+        "asset_id": "vm-1",
+        "action": "vm.start",
+        "connector_id": "proxmox",
+    }
+    await handler(allowed_call)
+    client.async_run_action.assert_awaited_once_with(
+        asset_id="vm-1",
+        action_type="connector_action",
+        connector_id="proxmox",
+        action_id="vm.start",
+        params=None,
+    )
+
+    arbitrary_call = MagicMock()
+    arbitrary_call.data = {
+        "asset_id": "vm-1",
+        "action": "snapshot.delete",
+        "connector_id": "proxmox",
+        "params": {"force": True},
+    }
+    with pytest.raises(integration.vol.Invalid, match="not exposed"):
+        await handler(arbitrary_call)
+
+
+@pytest.mark.asyncio
+async def test_run_action_service_requires_entry_for_duplicate_asset_ids(monkeypatch):
+    """Ambiguous multi-hub actions fail closed and explicit routing is exact."""
+    clients = []
+    entries = {}
+    for entry_id in ("entry-a", "entry-b"):
+        coordinator = MagicMock()
+        coordinator.data = LabTetherData(
+            assets=[{"id": "shared", "name": entry_id, "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+            metrics={},
+            firing_alerts_count=0,
+        )
+        client = MagicMock()
+        client.async_run_action = AsyncMock()
+        clients.append(client)
+        entries[entry_id] = {
+            "coordinator": coordinator,
+            "client": client,
+            "entry": _run_action_entry(),
+        }
+
+    hass = MagicMock()
+    hass.services.has_service.return_value = False
+    hass.data = {"labtether": entries}
+    register_admin_service = MagicMock()
+    monkeypatch.setattr(integration, "async_register_admin_service", register_admin_service)
+    integration._register_run_action_service(hass)
+    handler = register_admin_service.call_args.args[3]
+
+    ambiguous_call = MagicMock()
+    ambiguous_call.data = {"asset_id": "shared", "action": "vm.start"}
+    with pytest.raises(integration.vol.Invalid, match="provide entry_id"):
+        await handler(ambiguous_call)
+    clients[0].async_run_action.assert_not_awaited()
+    clients[1].async_run_action.assert_not_awaited()
+
+    explicit_call = MagicMock()
+    explicit_call.data = {
+        "asset_id": "shared",
+        "action": "vm.start",
+        "entry_id": "entry-b",
+    }
+    await handler(explicit_call)
+    clients[0].async_run_action.assert_not_awaited()
+    clients[1].async_run_action.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_run_action_service_does_not_expose_disabled_entry(monkeypatch):
+    """One enabled hub must not make disabled hubs mutable through the global service."""
+    enabled_coordinator = MagicMock()
+    enabled_coordinator.data = LabTetherData(assets=[], metrics={}, firing_alerts_count=0)
+    disabled_coordinator = MagicMock()
+    disabled_coordinator.data = LabTetherData(
+        assets=[{"id": "vm-disabled", "name": "VM", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+        metrics={},
+        firing_alerts_count=0,
+    )
+    disabled_client = MagicMock()
+    disabled_client.async_run_action = AsyncMock()
+    hass = MagicMock()
+    hass.services.has_service.return_value = False
+    hass.data = {
+        "labtether": {
+            "entry-enabled": {
+                "coordinator": enabled_coordinator,
+                "client": MagicMock(),
+                "entry": _run_action_entry(True),
+            },
+            "entry-disabled": {
+                "coordinator": disabled_coordinator,
+                "client": disabled_client,
+                "entry": _run_action_entry(False),
+            },
+        }
+    }
+    register_admin_service = MagicMock()
+    monkeypatch.setattr(integration, "async_register_admin_service", register_admin_service)
+    integration._register_run_action_service(hass)
+    handler = register_admin_service.call_args.args[3]
+
+    call = MagicMock()
+    call.data = {
+        "asset_id": "vm-disabled",
+        "action": "vm.start",
+        "entry_id": "entry-disabled",
+    }
+    with pytest.raises(integration.vol.Invalid, match="No loaded LabTether entry"):
+        await handler(call)
+    disabled_client.async_run_action.assert_not_awaited()
 
 
 def test_legacy_unique_id_migrations_namespace_old_ids():
@@ -73,7 +269,7 @@ def test_migrate_entity_unique_ids_updates_entity_registry():
 
     entity_registry = MagicMock()
     old_entry = MagicMock()
-    old_entry.platform = "binary_sensor"
+    old_entry.platform = "labtether"
     old_entry.unique_id = "labtether_vm-100_status"
     old_entry.entity_id = "binary_sensor.vm_100_status"
     integration.er.async_get = MagicMock(return_value=entity_registry)
@@ -85,6 +281,43 @@ def test_migrate_entity_unique_ids_updates_entity_registry():
         "binary_sensor.vm_100_status",
         new_unique_id="labtether_entry-1_vm-100_status",
     )
+
+
+def test_remove_disabled_entity_registry_entries_removes_only_disabled_domains():
+    """Disabling an import category must not leave unavailable registry ghosts."""
+    hass = MagicMock()
+    entry = MagicMock()
+    entry.entry_id = "entry-1"
+    entry.data = {}
+    entry.options = {
+        CONF_IMPORT_BINARY_SENSORS: True,
+        CONF_IMPORT_SENSORS: False,
+        CONF_IMPORT_SWITCHES: True,
+    }
+
+    entity_registry = MagicMock()
+    entries = []
+    for entity_id, platform in (
+        ("sensor.vm_cpu_usage", "labtether"),
+        ("sensor.hub_total_assets", "labtether"),
+        ("binary_sensor.vm_status", "labtether"),
+        ("switch.vm_power", "labtether"),
+        ("sensor.foreign", "other_integration"),
+    ):
+        entity_entry = MagicMock()
+        entity_entry.entity_id = entity_id
+        entity_entry.platform = platform
+        entries.append(entity_entry)
+
+    integration.er.async_get = MagicMock(return_value=entity_registry)
+    integration.er.async_entries_for_config_entry = MagicMock(return_value=entries)
+
+    integration._remove_disabled_entity_registry_entries(hass, entry)
+
+    assert entity_registry.async_remove.call_args_list == [
+        call("sensor.vm_cpu_usage"),
+        call("sensor.hub_total_assets"),
+    ]
 
 
 @pytest.mark.asyncio

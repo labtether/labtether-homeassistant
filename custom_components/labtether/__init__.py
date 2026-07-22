@@ -8,6 +8,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.helpers.service import async_register_admin_service
 import voluptuous as vol
 
 from .api import LabTetherApiClient
@@ -15,10 +16,18 @@ from .const import (
     DOMAIN,
     CONF_HOST,
     CONF_API_KEY,
+    CONF_ALLOW_INSECURE_HTTP,
     CONF_IGNORE_CERT_ERRORS,
     CONF_ENABLE_RUN_ACTION_SERVICE,
+    CONF_IMPORT_BINARY_SENSORS,
+    CONF_IMPORT_SENSORS,
+    CONF_IMPORT_SWITCHES,
     CONF_SCAN_INTERVAL,
     DEFAULT_ENABLE_RUN_ACTION_SERVICE,
+    DEFAULT_ALLOW_INSECURE_HTTP,
+    DEFAULT_IMPORT_BINARY_SENSORS,
+    DEFAULT_IMPORT_SENSORS,
+    DEFAULT_IMPORT_SWITCHES,
     DEFAULT_SCAN_INTERVAL,
     PLATFORMS,
     entry_pref,
@@ -26,6 +35,7 @@ from .const import (
     TELEMETRY_KINDS,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
+    RUN_ACTION_ALLOWLIST,
     hub_registry_key,
     asset_registry_key,
 )
@@ -38,6 +48,7 @@ SERVICE_RUN_ACTION_SCHEMA = vol.Schema(
     {
         vol.Required("asset_id"): cv.string,
         vol.Required("action"): cv.string,
+        vol.Optional("entry_id"): cv.string,
         vol.Optional("connector_id"): cv.string,
         vol.Optional("params"): dict,
     }
@@ -55,6 +66,9 @@ def _build_client(hass: HomeAssistant, entry: ConfigEntry) -> LabTetherApiClient
         api_key=entry.data[CONF_API_KEY],
         session=session,
         ignore_cert_errors=bool(entry_pref(entry, CONF_IGNORE_CERT_ERRORS, False)),
+        allow_insecure_http=bool(
+            entry.data.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
+        ),
     )
 
 
@@ -71,13 +85,43 @@ def _ensure_hub_device(hass: HomeAssistant, entry: ConfigEntry, client: LabTethe
     )
 
 
-def _select_service_target(hass: HomeAssistant, asset_id: str):
-    """Find the loaded entry that owns the requested asset."""
-    for entry_data in hass.data.get(DOMAIN, {}).values():
+def _select_service_target(
+    hass: HomeAssistant,
+    asset_id: str,
+    entry_id: str | None = None,
+    *,
+    require_run_action_enabled: bool = False,
+):
+    """Find exactly one loaded entry that owns the requested asset."""
+    entries = hass.data.get(DOMAIN, {})
+
+    def eligible(entry_data) -> bool:
+        if not require_run_action_enabled:
+            return True
+        entry = entry_data.get("entry")
+        return entry is not None and _run_action_enabled(entry)
+
+    requested_entry_id = str(entry_id or "").strip()
+    if requested_entry_id:
+        entry_data = entries.get(requested_entry_id)
+        if entry_data is None or not eligible(entry_data):
+            return None
         coordinator = entry_data["coordinator"]
-        if coordinator.data.get_asset(asset_id) is not None:
-            return entry_data
-    return None
+        if coordinator.data.get_asset(asset_id) is None:
+            return None
+        return entry_data
+
+    matches = [
+        entry_data
+        for entry_data in entries.values()
+        if eligible(entry_data)
+        and entry_data["coordinator"].data.get_asset(asset_id) is not None
+    ]
+    if len(matches) > 1:
+        raise vol.Invalid(
+            f"Multiple LabTether entries expose asset_id={asset_id!r}; provide entry_id"
+        )
+    return matches[0] if matches else None
 
 
 def _legacy_unique_id_migrations(coordinator: LabTetherCoordinator) -> dict[tuple[str, str], str]:
@@ -120,11 +164,42 @@ def _migrate_entity_unique_ids(hass: HomeAssistant, entry: ConfigEntry, coordina
     entity_registry = er.async_get(hass)
     migrations = _legacy_unique_id_migrations(coordinator)
     for entity_entry in er.async_entries_for_config_entry(entity_registry, entry.entry_id):
-        new_unique_id = migrations.get((entity_entry.platform, entity_entry.unique_id))
+        entity_domain = entity_entry.entity_id.partition(".")[0]
+        new_unique_id = migrations.get((entity_domain, entity_entry.unique_id))
         if new_unique_id and new_unique_id != entity_entry.unique_id:
             entity_registry.async_update_entity(
                 entity_entry.entity_id, new_unique_id=new_unique_id
             )
+
+
+def _remove_disabled_entity_registry_entries(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Remove registry ghosts for entity categories the operator disabled."""
+    preferences = {
+        "binary_sensor": entry_pref(
+            entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS
+        ),
+        "sensor": entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS),
+        "switch": entry_pref(
+            entry, CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES
+        ),
+    }
+    disabled_domains = {
+        entity_domain
+        for entity_domain, enabled in preferences.items()
+        if not bool(enabled)
+    }
+    if not disabled_domains:
+        return
+
+    entity_registry = er.async_get(hass)
+    for entity_entry in list(
+        er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+    ):
+        entity_domain = entity_entry.entity_id.partition(".")[0]
+        if entity_entry.platform == DOMAIN and entity_domain in disabled_domains:
+            entity_registry.async_remove(entity_entry.entity_id)
 
 
 def _register_run_action_service(hass: HomeAssistant) -> None:
@@ -134,24 +209,49 @@ def _register_run_action_service(hass: HomeAssistant) -> None:
     async def handle_run_action(call: ServiceCall) -> None:
         """Handle the run_action service call."""
         asset_id = call.data["asset_id"]
-        action = call.data["action"]
-        connector_id = call.data.get("connector_id")
+        action = call.data["action"].strip()
+        requested_entry_id = call.data.get("entry_id")
+        requested_connector_id = call.data.get("connector_id")
         params = call.data.get("params")
 
-        target = _select_service_target(hass, asset_id)
+        target = _select_service_target(
+            hass,
+            asset_id,
+            requested_entry_id,
+            require_run_action_enabled=True,
+        )
         if target is None:
-            raise ValueError(f"No loaded LabTether entry exposes asset_id={asset_id!r}")
+            entry_context = (
+                f" in entry_id={requested_entry_id!r}"
+                if requested_entry_id is not None
+                else ""
+            )
+            raise vol.Invalid(
+                f"No loaded LabTether entry exposes asset_id={asset_id!r}{entry_context}"
+            )
+
+        asset = target["coordinator"].data.get_asset(asset_id)
+        source = str(asset.get("source", "")).strip().lower()
+        allowed_actions = RUN_ACTION_ALLOWLIST.get(source, frozenset())
+        if action not in allowed_actions:
+            raise vol.Invalid(
+                f"Action {action!r} is not exposed through Home Assistant for asset source {source!r}"
+            )
+        if requested_connector_id is not None and requested_connector_id.strip().lower() != source:
+            raise vol.Invalid("connector_id must match the selected asset source")
+        if params:
+            raise vol.Invalid("run_action does not accept arbitrary parameters")
 
         client: LabTetherApiClient = target["client"]
         await client.async_run_action(
             asset_id=asset_id,
             action_type="connector_action",
-            connector_id=connector_id,
+            connector_id=source,
             action_id=action,
             params=params,
         )
-
-    hass.services.async_register(
+    async_register_admin_service(
+        hass,
         DOMAIN,
         SERVICE_RUN_ACTION,
         handle_run_action,
@@ -184,6 +284,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
+    _remove_disabled_entity_registry_entries(hass, entry)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
