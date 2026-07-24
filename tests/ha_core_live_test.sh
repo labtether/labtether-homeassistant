@@ -148,7 +148,15 @@ if [[ "${ha_ready}" != "true" ]]; then
   exit 1
 fi
 
-"${REPO_ROOT}/.venv/bin/python" "${REPO_ROOT}/tests/live_ha_core_qa.py" \
+qa_python="${LABTETHER_QA_PYTHON:-}"
+if [[ -z "${qa_python}" ]]; then
+  if [[ -x "${REPO_ROOT}/.venv/bin/python" ]]; then
+    qa_python="${REPO_ROOT}/.venv/bin/python"
+  else
+    qa_python="python3"
+  fi
+fi
+"${qa_python}" "${REPO_ROOT}/tests/live_ha_core_qa.py" \
   --base-url "${base_url}" \
   --fake-external-url "${fake_external_url}" \
   --fake-internal-url https://ltqa-ha-fake-hub:18080 \

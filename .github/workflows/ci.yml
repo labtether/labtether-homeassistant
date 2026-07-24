@@ -1,8 +1,10 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
+    tags: ["v*"]
   pull_request:
     branches: [main]
 
@@ -10,6 +12,34 @@ permissions:
   contents: read
 
 jobs:
+  qa-contracts:
+    runs-on: ubuntu-latest
+    outputs:
+      contracts: ${{ steps.select.outputs.contracts }}
+      mode: ${{ steps.select.outputs.mode }}
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Test QA contract selector
+        run: ./scripts/ci/test-select-qa-contracts.sh
+
+      - name: Select risk-based QA contracts
+        id: select
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          mode="auto"
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" || "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            mode="full"
+          fi
+          ./scripts/ci/select-qa-contracts.sh \
+            --mode "${mode}" \
+            --base "${BASE_SHA:-}" \
+            --head "${GITHUB_SHA}"
+
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -45,3 +75,29 @@ jobs:
 
       - name: Verify immutable build inputs and unprivileged hub runtime
         run: ./tests/addon_container_security_test.sh
+
+  home-assistant-disposable-tls:
+    needs: qa-contracts
+    if: contains(format(',{0},', needs.qa-contracts.outputs.contracts), ',ha-disposable-tls,')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+        with:
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: "3.14"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install disposable QA dependencies
+        run: python -m pip install --require-hashes --requirement requirements-dev.txt
+
+      - name: Run installed Home Assistant lifecycle against disposable TLS hub
+        env:
+          LABTETHER_LIVE_HA_QA: "1"
+          LABTETHER_QA_PYTHON: python
+        run: ./tests/ha_core_live_test.sh
