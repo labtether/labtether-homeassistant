@@ -1,0 +1,12 @@
+# contract_id	path_glob	reason
+ha-disposable-tls	custom_components/labtether/**	Home Assistant must complete its installed lifecycle against a disposable TLS hub
+ha-disposable-tls	tests/live_ha_*	Live lifecycle and TLS harness changes require the installed Home Assistant contract
+ha-disposable-tls	tests/ha_core_live_test.sh	Live lifecycle and TLS harness changes require the installed Home Assistant contract
+ha-disposable-tls	requirements-dev.*	Dependency changes can alter the installed Home Assistant runtime
+ha-disposable-tls	scripts/ci/**	QA contract changes must prove every slow Home Assistant contract
+ha-disposable-tls	.github/workflows/ci.yml	CI routing changes must prove every slow Home Assistant contract
+addon-installed-container	addon/**	Add-on packaging, permissions, TLS, and restart behavior require an installed container proof
+addon-installed-container	scripts/release/**	Add-on repository packaging changes require an installed container proof
+addon-installed-container	.github/workflows/addon-release.yml	Add-on release changes require an installed container proof
+addon-installed-container	scripts/ci/**	QA contract changes must prove every slow Home Assistant contract
+addon-installed-container	.github/workflows/ci.yml	CI routing changes must prove every slow Home Assistant contract

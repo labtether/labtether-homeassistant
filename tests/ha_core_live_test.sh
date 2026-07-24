@@ -8,7 +8,7 @@ fi
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant@sha256:3a491dcf68a0d17ec439a464f7a076386af11d8aec3e15d1c1c46625783f0340"
+readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant@sha256:0e091dfce3068339c3e1d14382e6c34141e05cd589a1972ebd4d9a8e6b5d8969"
 readonly SUFFIX="$$-${RANDOM}"
 readonly HA_CONTAINER="ltqa-ha-core-${SUFFIX}"
 readonly FAKE_CONTAINER="ltqa-ha-fake-${SUFFIX}"
@@ -148,7 +148,15 @@ if [[ "${ha_ready}" != "true" ]]; then
   exit 1
 fi
 
-"${REPO_ROOT}/.venv/bin/python" "${REPO_ROOT}/tests/live_ha_core_qa.py" \
+qa_python="${LABTETHER_QA_PYTHON:-}"
+if [[ -z "${qa_python}" ]]; then
+  if [[ -x "${REPO_ROOT}/.venv/bin/python" ]]; then
+    qa_python="${REPO_ROOT}/.venv/bin/python"
+  else
+    qa_python="python3"
+  fi
+fi
+"${qa_python}" "${REPO_ROOT}/tests/live_ha_core_qa.py" \
   --base-url "${base_url}" \
   --fake-external-url "${fake_external_url}" \
   --fake-internal-url https://ltqa-ha-fake-hub:18080 \
