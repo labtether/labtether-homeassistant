@@ -25,11 +25,11 @@ trap cleanup EXIT
 docker_arch="$(docker info --format '{{.Architecture}}')"
 case "${docker_arch}" in
   amd64 | x86_64)
-    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:e976b27157be0f89fd5bd4757ec6377d2576963623deb135246d0f3c5742f462"
+    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede"
     mutable_build_from="ghcr.io/home-assistant/amd64-base:3.23"
     ;;
   arm64 | aarch64)
-    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:a75b07ed8fdccb58720bd844ad9da7a8fc454fc3f3b313ff75ca6fae4b5b821e"
+    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:e81d9f268833456f9803da051fa95fd8fa4e1fad1f911dec1a489a18701a76f5"
     mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.23"
     ;;
   *)
