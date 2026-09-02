@@ -68,7 +68,7 @@ def test_ci_actions_and_python_test_dependencies_are_immutable():
     requirements = DEV_REQUIREMENTS.read_text()
     assert "--hash=sha256:" in requirements
     assert "homeassistant==" not in requirements
-    assert "aiohttp==3.14.1" in requirements
+    assert "aiohttp==3.14.3" in requirements
     assert "pytest==9.1.1" in requirements
     assert "pytest-asyncio==1.4.0" in requirements
     assert "voluptuous==0.16.0" in requirements
