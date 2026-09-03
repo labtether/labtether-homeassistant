@@ -14,13 +14,13 @@
 
 When credentials are generated automatically, they are written to:
 
-- `/data/labtether-addon/generated-credentials.txt`
+- `/data/labtether-addon-root/generated-credentials.txt`
 
 Treat this file as sensitive.
 
 The first-run setup token is kept separately at
 `/data/labtether-addon/setup-token` with mode `0600`. It is removed by the hub
-after successful owner creation and is never persisted in `runtime.env`. A
+after successful owner creation and is never persisted in root-consumed state. A
 configured token is staged only once; restarting the add-on cannot resurrect a
 previously consumed token.
 
@@ -32,13 +32,15 @@ before first start and remove or rotate the option after owner setup.
 
 The add-on entrypoint performs only the mounted-volume permission bootstrap and
 optional local Postgres startup as root. It then starts the LabTether hub as the
-dedicated `labtether` account (UID/GID `10001`). The hub can write only its
-state, install, certificate, agent-cache, recording, CA-share, and private
-runtime directories. `/data/postgres` remains owned by the separate `postgres`
-account, and the `/data` volume root remains root-owned and non-listable.
+dedicated `labtether` account (UID/GID `10001`). Root-consumed state uses strict
+JSON under `/data/labtether-addon-root`; only the one-time setup-token directory
+is writable by the hub. The hub can also write its install, certificate,
+agent-cache, recording, CA-share, and private runtime directories.
+`/data/postgres` remains owned by the separate `postgres` account, and the
+`/data` volume root remains root-owned and non-listable.
 
-Existing state in those dedicated directories is migrated to the unprivileged
-account on first start. Secret files remain mode `0600`; private state,
+Legacy `runtime.env` state is migrated once by an unprivileged process and is
+never executed as root. Secret files remain mode `0600`; private state,
 certificate, recording, and runtime directories remain mode `0700`.
 
 When external TLS files are configured through `LABTETHER_TLS_CERT` and

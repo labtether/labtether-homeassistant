@@ -17,6 +17,9 @@ from .const import (
     API_ALERTS_INSTANCES,
     API_ACTIONS_EXECUTE,
     EXCLUDED_SOURCE,
+    MAX_ASSETS_PER_RESPONSE,
+    MAX_ASSET_FIELD_LENGTH,
+    MAX_ASSET_ID_LENGTH,
     TELEMETRY_KINDS,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
@@ -27,6 +30,28 @@ _LOGGER = logging.getLogger(__name__)
 MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 API_RESPONSE_CHUNK_BYTES = 64 * 1024
 API_REQUEST_TIMEOUT_SECONDS = 30
+
+
+def _validated_asset_id(value: Any, *, field: str = "id") -> str:
+    """Return a safe asset identifier or reject the complete API snapshot."""
+    if not isinstance(value, str):
+        raise LabTetherApiError(f"API returned a non-string asset {field}")
+    if not value or value != value.strip() or len(value) > MAX_ASSET_ID_LENGTH:
+        raise LabTetherApiError(f"API returned an invalid asset {field}")
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in value):
+        raise LabTetherApiError(f"API returned an invalid asset {field}")
+    return value
+
+
+def _validate_optional_asset_string(asset: dict[str, Any], field: str) -> None:
+    """Validate an optional asset string without rejecting future values."""
+    if field not in asset:
+        return
+    value = asset[field]
+    if not isinstance(value, str) or len(value) > MAX_ASSET_FIELD_LENGTH:
+        raise LabTetherApiError(f"API returned an invalid asset {field}")
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in value):
+        raise LabTetherApiError(f"API returned an invalid asset {field}")
 
 
 def hub_origin_is_valid(host: str, *, allow_insecure_http: bool = False) -> bool:
@@ -215,16 +240,41 @@ class LabTetherApiClient:
     async def async_get_assets(self) -> list[dict]:
         """Get all assets, excluding HA-sourced ones to prevent circular mirroring."""
         data = await self._get(API_ASSETS)
-        assets = data.get("assets", [])
+        if "assets" not in data:
+            raise LabTetherApiError("API response is missing the assets collection")
+        assets = data["assets"]
         if not isinstance(assets, list):
             raise LabTetherApiError("API returned an invalid assets collection")
-        return [
-            asset
-            for asset in assets
-            if isinstance(asset, dict)
-            and asset.get("source") != EXCLUDED_SOURCE
-            and asset.get("id")
-        ]
+        if len(assets) > MAX_ASSETS_PER_RESPONSE:
+            raise LabTetherApiError(
+                f"API returned more than {MAX_ASSETS_PER_RESPONSE} assets"
+            )
+        validated_assets: list[dict[str, Any]] = []
+        seen_asset_ids: set[str] = set()
+        for asset in assets:
+            if not isinstance(asset, dict):
+                raise LabTetherApiError("API returned an invalid asset record")
+
+            asset_id = _validated_asset_id(asset.get("id"))
+            if asset_id == "hub":
+                raise LabTetherApiError("API returned a reserved asset id")
+            if asset_id in seen_asset_ids:
+                raise LabTetherApiError("API returned duplicate asset IDs")
+            seen_asset_ids.add(asset_id)
+
+            for field in ("name", "type", "source", "status"):
+                _validate_optional_asset_string(asset, field)
+            if "metadata" in asset and not isinstance(asset["metadata"], dict):
+                raise LabTetherApiError("API returned invalid asset metadata")
+
+            if asset.get("source") == EXCLUDED_SOURCE:
+                continue
+
+            normalized_asset = dict(asset)
+            normalized_asset.setdefault("metadata", {})
+            validated_assets.append(normalized_asset)
+
+        return validated_assets
 
     async def async_get_metrics_overview(self) -> dict[str, dict]:
         """Get latest metrics for all assets, keyed by asset_id."""
@@ -232,14 +282,21 @@ class LabTetherApiClient:
         entries = data.get("assets", [])
         if not isinstance(entries, list):
             raise LabTetherApiError("API returned an invalid metrics collection")
-        result = {}
+        if len(entries) > MAX_ASSETS_PER_RESPONSE:
+            raise LabTetherApiError(
+                f"API returned more than {MAX_ASSETS_PER_RESPONSE} metric records"
+            )
+        result: dict[str, dict[str, Any]] = {}
         for entry in entries:
             if not isinstance(entry, dict):
-                continue
-            asset_id = entry.get("asset_id")
-            if asset_id:
-                metrics = entry.get("metrics", {})
-                result[asset_id] = metrics if isinstance(metrics, dict) else {}
+                raise LabTetherApiError("API returned an invalid metric record")
+            asset_id = _validated_asset_id(entry.get("asset_id"), field="metric asset_id")
+            if asset_id in result:
+                raise LabTetherApiError("API returned duplicate metric asset IDs")
+            metrics = entry.get("metrics", {})
+            if not isinstance(metrics, dict):
+                raise LabTetherApiError("API returned invalid asset metrics")
+            result[asset_id] = metrics
         return result
 
     async def async_get_firing_alerts_count(self) -> int:

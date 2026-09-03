@@ -54,12 +54,12 @@ async def async_setup_entry(
         nonlocal known_asset_ids
         current_asset_ids = _current_asset_ids()
         new_asset_ids = sorted(current_asset_ids - known_asset_ids)
+        known_asset_ids = current_asset_ids
         if not new_asset_ids:
             return
         async_add_entities(
             [LabTetherAssetStatusSensor(coordinator, asset_id) for asset_id in new_asset_ids]
         )
-        known_asset_ids |= set(new_asset_ids)
 
     entry.async_on_unload(coordinator.async_add_listener(_async_add_new_entities))
 
