@@ -3,11 +3,15 @@ set -Eeuo pipefail
 
 readonly OPTIONS_FILE="/data/options.json"
 readonly STATE_DIR="/data/labtether-addon"
-readonly STATE_ENV_FILE="${STATE_DIR}/runtime.env"
-readonly GENERATED_FILE="${STATE_DIR}/generated-credentials.txt"
+readonly ROOT_STATE_DIR="/data/labtether-addon-root"
+readonly LEGACY_STATE_ENV_FILE="${STATE_DIR}/runtime.env"
+readonly STATE_JSON_FILE="${ROOT_STATE_DIR}/runtime.json"
+readonly GENERATED_FILE="${ROOT_STATE_DIR}/generated-credentials.txt"
 readonly SETUP_TOKEN_FILE="${STATE_DIR}/setup-token"
-readonly SETUP_TOKEN_OPTION_MARKER_FILE="${STATE_DIR}/setup-token-option.sha256"
-readonly SETUP_TOKEN_ISSUED_MARKER_FILE="${STATE_DIR}/setup-token-issued.sha256"
+readonly LEGACY_SETUP_TOKEN_OPTION_MARKER_FILE="${STATE_DIR}/setup-token-option.sha256"
+readonly LEGACY_SETUP_TOKEN_ISSUED_MARKER_FILE="${STATE_DIR}/setup-token-issued.sha256"
+readonly SETUP_TOKEN_OPTION_MARKER_FILE="${ROOT_STATE_DIR}/setup-token-option.sha256"
+readonly SETUP_TOKEN_ISSUED_MARKER_FILE="${ROOT_STATE_DIR}/setup-token-issued.sha256"
 readonly HUB_USER="labtether"
 readonly HUB_GROUP="labtether"
 readonly HUB_INSTALL_DIR="/data/install"
@@ -45,11 +49,13 @@ fi
 if [[ -L "/data" ]] || [[ ! -d "/data" ]]; then
   fail "/data must be a real directory"
 fi
-if [[ -L "${STATE_DIR}" ]] || { [[ -e "${STATE_DIR}" ]] && [[ ! -d "${STATE_DIR}" ]]; }; then
-  fail "refusing unsafe state directory ${STATE_DIR}"
-fi
-mkdir -p "${STATE_DIR}"
-chmod 700 "${STATE_DIR}"
+for state_dir in "${STATE_DIR}" "${ROOT_STATE_DIR}"; do
+  if [[ -L "${state_dir}" ]] || { [[ -e "${state_dir}" ]] && [[ ! -d "${state_dir}" ]]; }; then
+    fail "refusing unsafe state directory ${state_dir}"
+  fi
+done
+chown root:root /data
+chmod 0711 /data
 
 prepare_owned_tree() {
   local path="$1"
@@ -65,16 +71,28 @@ prepare_owned_tree() {
   chmod "${mode}" "${path}"
 }
 
+prepare_root_tree() {
+  local path="$1"
+  local mode="$2"
+
+  if [[ -L "${path}" ]] || { [[ -e "${path}" ]] && [[ ! -d "${path}" ]]; }; then
+    fail "refusing unsafe root state directory ${path}"
+  fi
+  mkdir -p "${path}"
+  chown -RhP root:root "${path}"
+  chmod "${mode}" "${path}"
+}
+
 prepare_state_secrets() {
   local path
 
   prepare_owned_tree "${STATE_DIR}" 0700
+  prepare_root_tree "${ROOT_STATE_DIR}" 0700
   for path in \
-    "${STATE_ENV_FILE}" \
-    "${GENERATED_FILE}" \
-    "${SETUP_TOKEN_FILE}" \
-    "${SETUP_TOKEN_OPTION_MARKER_FILE}" \
-    "${SETUP_TOKEN_ISSUED_MARKER_FILE}"; do
+    "${LEGACY_STATE_ENV_FILE}" \
+    "${LEGACY_SETUP_TOKEN_OPTION_MARKER_FILE}" \
+    "${LEGACY_SETUP_TOKEN_ISSUED_MARKER_FILE}" \
+    "${SETUP_TOKEN_FILE}"; do
     if [[ -L "${path}" ]]; then
       fail "refusing symlinked state file ${path}"
     fi
@@ -86,15 +104,28 @@ prepare_state_secrets() {
       chmod 600 "${path}"
     fi
   done
+  for path in \
+    "${STATE_JSON_FILE}" \
+    "${GENERATED_FILE}" \
+    "${SETUP_TOKEN_OPTION_MARKER_FILE}" \
+    "${SETUP_TOKEN_ISSUED_MARKER_FILE}"; do
+    if [[ -L "${path}" ]]; then
+      fail "refusing symlinked state file ${path}"
+    fi
+    if [[ -e "${path}" ]]; then
+      if [[ ! -f "${path}" ]]; then
+        fail "state path ${path} must be a regular file"
+      fi
+      chown root:root "${path}"
+      chmod 600 "${path}"
+    fi
+  done
 }
 
 prepare_hub_runtime() {
   # Keep the volume root owned by root and non-listable. The hub receives only
   # the narrowly scoped subdirectories it must mutate; postgres keeps its own
   # independently owned data tree.
-  chown root:root /data
-  chmod 0711 /data
-
   prepare_state_secrets
   prepare_owned_tree "${HUB_INSTALL_DIR}" 0700
   prepare_owned_tree "${HUB_CERTS_DIR}" 0700
@@ -130,41 +161,126 @@ stage_external_tls_files() {
   export LABTETHER_TLS_KEY="${staged_key}"
 }
 
-load_state_env() {
-  if [[ -L "${STATE_ENV_FILE}" ]] \
-    || { [[ -e "${STATE_ENV_FILE}" ]] && [[ ! -f "${STATE_ENV_FILE}" ]]; }; then
-    fail "refusing unsafe runtime state file ${STATE_ENV_FILE}"
+state_json_is_valid() {
+  local path="$1"
+
+  jq -e '
+    type == "object"
+    and ((keys - [
+      "DATABASE_MODE",
+      "DATABASE_URL",
+      "LABTETHER_ENCRYPTION_KEY",
+      "LABTETHER_OWNER_TOKEN"
+    ]) | length == 0)
+    and all(.[]; type == "string")
+    and (
+      (.DATABASE_MODE // "") == ""
+      or (.DATABASE_MODE // "") == "local"
+      or (.DATABASE_MODE // "") == "external"
+    )
+  ' "${path}" >/dev/null 2>&1
+}
+
+write_state_json() {
+  local value="$1"
+  local tmp
+
+  umask 077
+  tmp="$(mktemp "${ROOT_STATE_DIR}/.runtime-json.XXXXXX")"
+  printf '%s\n' "${value}" > "${tmp}"
+  if ! state_json_is_valid "${tmp}"; then
+    rm -f -- "${tmp}"
+    fail "refusing invalid runtime state"
   fi
-  if [[ -f "${STATE_ENV_FILE}" ]]; then
-    # shellcheck disable=SC1090
-    source "${STATE_ENV_FILE}"
+  chown root:root "${tmp}"
+  chmod 600 "${tmp}"
+  mv "${tmp}" "${STATE_JSON_FILE}"
+}
+
+migrate_legacy_state() {
+  local legacy_json
+
+  if [[ -f "${STATE_JSON_FILE}" ]]; then
+    return
+  fi
+  if [[ ! -e "${LEGACY_STATE_ENV_FILE}" ]]; then
+    write_state_json '{}'
+    return
+  fi
+  if [[ -L "${LEGACY_STATE_ENV_FILE}" ]] || [[ ! -f "${LEGACY_STATE_ENV_FILE}" ]]; then
+    fail "refusing unsafe legacy runtime state file ${LEGACY_STATE_ENV_FILE}"
+  fi
+
+  # Older releases persisted Bash-escaped assignments. Execute that legacy
+  # syntax only as the already-exposed Hub user, then cross back to root through
+  # one strictly validated JSON document containing the four supported fields.
+  # The quoted scripts expand only after the UID drop.
+  # shellcheck disable=SC2016
+  if ! legacy_json="$(
+    su-exec "${HUB_USER}:${HUB_GROUP}" /usr/bin/env -i PATH=/usr/bin:/bin \
+      /bin/bash --noprofile --norc -c '
+        set -Eeuo pipefail
+        # shellcheck disable=SC1090
+        source "$1"
+        /usr/bin/env -i \
+          STATE_OWNER_TOKEN="${LABTETHER_OWNER_TOKEN:-}" \
+          STATE_ENCRYPTION_KEY="${LABTETHER_ENCRYPTION_KEY:-}" \
+          STATE_DATABASE_URL="${DATABASE_URL:-}" \
+          STATE_DATABASE_MODE="${DATABASE_MODE:-}" \
+          /bin/bash --noprofile --norc -c '\''
+            exec /usr/bin/jq -n \
+              --arg owner "${STATE_OWNER_TOKEN}" \
+              --arg encryption "${STATE_ENCRYPTION_KEY}" \
+              --arg database_url "${STATE_DATABASE_URL}" \
+              --arg database_mode "${STATE_DATABASE_MODE}" \
+              "{LABTETHER_OWNER_TOKEN: \$owner, LABTETHER_ENCRYPTION_KEY: \$encryption, DATABASE_URL: \$database_url, DATABASE_MODE: \$database_mode}"
+          '\''
+      ' _ "${LEGACY_STATE_ENV_FILE}"
+  )"; then
+    fail "could not migrate legacy runtime state"
+  fi
+  write_state_json "${legacy_json}"
+  rm -f -- "${LEGACY_STATE_ENV_FILE}"
+}
+
+load_state_json() {
+  if [[ -L "${STATE_JSON_FILE}" ]] || [[ ! -f "${STATE_JSON_FILE}" ]]; then
+    fail "missing safe runtime state file ${STATE_JSON_FILE}"
+  fi
+  if ! state_json_is_valid "${STATE_JSON_FILE}"; then
+    fail "refusing invalid runtime state file ${STATE_JSON_FILE}"
+  fi
+
+  local value
+  value="$(jq -r '.LABTETHER_OWNER_TOKEN // ""' "${STATE_JSON_FILE}")"
+  if [[ -n "${value}" ]]; then
+    LABTETHER_OWNER_TOKEN="${value}"
+  fi
+  value="$(jq -r '.LABTETHER_ENCRYPTION_KEY // ""' "${STATE_JSON_FILE}")"
+  if [[ -n "${value}" ]]; then
+    LABTETHER_ENCRYPTION_KEY="${value}"
+  fi
+  value="$(jq -r '.DATABASE_URL // ""' "${STATE_JSON_FILE}")"
+  if [[ -n "${value}" ]]; then
+    DATABASE_URL="${value}"
+  fi
+  value="$(jq -r '.DATABASE_MODE // ""' "${STATE_JSON_FILE}")"
+  if [[ -n "${value}" ]]; then
+    DATABASE_MODE="${value}"
   fi
 }
 
 persist_state_value() {
   local key="$1"
   local value="$2"
-  local tmp
-  tmp="$(mktemp)"
-  if [[ -f "${STATE_ENV_FILE}" ]]; then
-    grep -v "^${key}=" "${STATE_ENV_FILE}" > "${tmp}" || true
-  fi
-  printf '%s=%q\n' "${key}" "${value}" >> "${tmp}"
-  mv "${tmp}" "${STATE_ENV_FILE}"
-  chmod 600 "${STATE_ENV_FILE}"
-}
+  local updated
 
-remove_state_value() {
-  local key="$1"
-  local tmp
-
-  if [[ ! -f "${STATE_ENV_FILE}" ]] || ! grep -q "^${key}=" "${STATE_ENV_FILE}"; then
-    return
-  fi
-  tmp="$(mktemp "${STATE_DIR}/.runtime-env.XXXXXX")"
-  grep -v "^${key}=" "${STATE_ENV_FILE}" > "${tmp}" || true
-  mv "${tmp}" "${STATE_ENV_FILE}"
-  chmod 600 "${STATE_ENV_FILE}"
+  case "${key}" in
+    LABTETHER_OWNER_TOKEN | LABTETHER_ENCRYPTION_KEY | DATABASE_URL | DATABASE_MODE) ;;
+    *) fail "refusing unsupported runtime state key ${key}" ;;
+  esac
+  updated="$(jq --arg key "${key}" --arg value "${value}" '.[$key] = $value' "${STATE_JSON_FILE}")"
+  write_state_json "${updated}"
 }
 
 read_option_string() {
@@ -233,16 +349,44 @@ require_or_generate() {
 write_secret_file() {
   local path="$1"
   local value="$2"
+  local parent
   local tmp
 
   if [[ -L "${path}" ]]; then
     fail "refusing to replace symlinked secret file ${path}"
   fi
   umask 077
-  tmp="$(mktemp "${STATE_DIR}/.secret.XXXXXX")"
+  parent="$(dirname "${path}")"
+  tmp="$(mktemp "${parent}/.secret.XXXXXX")"
   printf '%s\n' "${value}" > "${tmp}"
   chmod 600 "${tmp}"
   mv "${tmp}" "${path}"
+}
+
+migrate_legacy_setup_markers() {
+  local legacy_path
+  local root_path
+  local value
+
+  while IFS='|' read -r legacy_path root_path; do
+    if [[ ! -e "${legacy_path}" ]]; then
+      continue
+    fi
+    if [[ -L "${legacy_path}" ]] || [[ ! -f "${legacy_path}" ]]; then
+      fail "refusing unsafe legacy setup-token marker ${legacy_path}"
+    fi
+    value="$(tr -d ' \r\n' < "${legacy_path}")"
+    if [[ ! "${value}" =~ ^[0-9a-f]{64}$ ]]; then
+      fail "refusing invalid legacy setup-token marker ${legacy_path}"
+    fi
+    if [[ ! -e "${root_path}" ]]; then
+      write_secret_file "${root_path}" "${value}"
+    fi
+    rm -f -- "${legacy_path}"
+  done <<EOF
+${LEGACY_SETUP_TOKEN_OPTION_MARKER_FILE}|${SETUP_TOKEN_OPTION_MARKER_FILE}
+${LEGACY_SETUP_TOKEN_ISSUED_MARKER_FILE}|${SETUP_TOKEN_ISSUED_MARKER_FILE}
+EOF
 }
 
 validate_setup_token() {
@@ -307,7 +451,7 @@ write_generated_summary() {
     fail "refusing symlinked generated-credentials file ${GENERATED_FILE}"
   fi
   umask 077
-  tmp="$(mktemp "${STATE_DIR}/.generated-credentials.XXXXXX")"
+  tmp="$(mktemp "${ROOT_STATE_DIR}/.generated-credentials.XXXXXX")"
   {
     echo "Generated on: $(date -u +"%Y-%m-%dT%H:%M:%SZ")"
     echo ""
@@ -332,7 +476,10 @@ cleanup() {
 trap cleanup EXIT
 
 require_options_file
-load_state_env
+prepare_state_secrets
+migrate_legacy_state
+load_state_json
+migrate_legacy_setup_markers
 
 AUTO_GENERATE="$(read_option_bool "auto_generate_credentials" "true")"
 OWNER_TOKEN_OPT="$(read_option_string "labtether_owner_token")"
@@ -350,8 +497,6 @@ require_or_generate "LABTETHER_ENCRYPTION_KEY" "${ENCRYPTION_KEY_OPT}" "${LABTET
 # An absent admin password deliberately selects the one-time local setup flow.
 # Never restore the generated admin password used by older add-on releases.
 LABTETHER_ADMIN_PASSWORD="${ADMIN_PASSWORD_OPT:-${PROCESS_ADMIN_PASSWORD}}"
-remove_state_value "LABTETHER_ADMIN_PASSWORD"
-remove_state_value "LABTETHER_SETUP_TOKEN"
 
 SETUP_TOKEN_GENERATED="false"
 if [[ -n "${LABTETHER_ADMIN_PASSWORD}" ]]; then

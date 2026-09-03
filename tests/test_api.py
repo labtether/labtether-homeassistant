@@ -14,6 +14,7 @@ from labtether.api import (
     LabTetherApiClient,
     LabTetherApiError,
 )
+from labtether.const import MAX_ASSETS_PER_RESPONSE, MAX_ASSET_ID_LENGTH
 
 
 @pytest.fixture
@@ -61,12 +62,11 @@ def test_api_client_requires_explicit_opt_in_for_non_loopback_http():
 
 @pytest.mark.asyncio
 async def test_get_assets_returns_filtered_list(api_client):
-    """Assets with source 'home-assistant' or no id should be excluded."""
+    """Valid Home Assistant-sourced assets should be excluded atomically."""
     mock_data = {
         "assets": [
             {"id": "pve-node-1", "name": "Node1", "type": "hypervisor-node", "source": "proxmox", "status": "online", "metadata": {}},
             {"id": "ha-light-1", "name": "Light", "type": "ha-entity", "source": "home-assistant", "status": "online", "metadata": {}},
-            {"name": "Broken", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}},
         ]
     }
     api_client._session.request = MagicMock(return_value=_mock_response(mock_data))
@@ -74,6 +74,55 @@ async def test_get_assets_returns_filtered_list(api_client):
     assets = await api_client.async_get_assets()
     assert len(assets) == 1
     assert assets[0]["id"] == "pve-node-1"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "assets,error",
+    [
+        ([{"source": "proxmox"}], "asset id"),
+        ([{"id": ["not-hashable"], "source": "proxmox"}], "non-string"),
+        ([{"id": " asset-1", "source": "proxmox"}], "invalid asset id"),
+        ([{"id": "asset\n1", "source": "proxmox"}], "invalid asset id"),
+        ([{"id": "a" * (MAX_ASSET_ID_LENGTH + 1), "source": "proxmox"}], "invalid asset id"),
+        ([{"id": "asset-1", "type": [], "source": "proxmox"}], "asset type"),
+        ([{"id": "asset-1", "source": []}], "asset source"),
+        ([{"id": "asset-1", "source": "proxmox", "metadata": None}], "metadata"),
+        ([{"id": "asset-1"}, {"id": "asset-1"}], "duplicate"),
+        ([{"id": "hub", "source": "proxmox"}], "reserved asset id"),
+    ],
+)
+async def test_get_assets_rejects_malformed_snapshot(api_client, assets, error):
+    """Malformed identity and shape data must fail before entity fan-out."""
+    api_client._session.request = MagicMock(
+        return_value=_mock_response({"assets": assets})
+    )
+
+    with pytest.raises(LabTetherApiError, match=error):
+        await api_client.async_get_assets()
+
+
+@pytest.mark.asyncio
+async def test_get_assets_rejects_missing_or_over_budget_snapshot(api_client):
+    """An omitted or oversized inventory must not become a partial snapshot."""
+    for data in (
+        {},
+        {
+            "assets": [
+                {"id": f"asset-{index}", "source": "proxmox"}
+                for index in range(MAX_ASSETS_PER_RESPONSE + 1)
+            ]
+        },
+        {
+            "assets": [
+                {"id": f"ha-{index}", "source": "home-assistant"}
+                for index in range(MAX_ASSETS_PER_RESPONSE + 1)
+            ]
+        },
+    ):
+        api_client._session.request = MagicMock(return_value=_mock_response(data))
+        with pytest.raises(LabTetherApiError):
+            await api_client.async_get_assets()
 
 
 @pytest.mark.asyncio
@@ -92,6 +141,24 @@ async def test_get_metrics_overview(api_client):
     metrics = await api_client.async_get_metrics_overview()
     assert "pve-node-1" in metrics
     assert metrics["pve-node-1"]["cpu_used_percent"] == 45.5
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"asset_id": ["not-hashable"], "metrics": {}},
+        {"asset_id": "asset-1", "metrics": []},
+    ],
+)
+async def test_get_metrics_overview_rejects_malformed_records(api_client, entry):
+    """Metric records must not bypass the asset identity boundary."""
+    api_client._session.request = MagicMock(
+        return_value=_mock_response({"assets": [entry]})
+    )
+
+    with pytest.raises(LabTetherApiError):
+        await api_client.async_get_metrics_overview()
 
 
 @pytest.mark.asyncio
