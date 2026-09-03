@@ -7,7 +7,11 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import TYPE_CHECKING, Any
 
-from .const import DOMAIN, DEFAULT_SCAN_INTERVAL
+from .const import (
+    DOMAIN,
+    DEFAULT_SCAN_INTERVAL,
+    MAX_ASSET_IDENTITIES_PER_ENTRY,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -59,6 +63,7 @@ def _build_coordinator_class() -> type:
             )
             self.api = api
             self.entry_id = entry_id
+            self._seen_asset_ids: set[str] = set()
 
         async def _async_update_data(self) -> LabTetherData:
             """Fetch data from LabTether API."""
@@ -71,6 +76,15 @@ def _build_coordinator_class() -> type:
                     raise ConfigEntryAuthFailed from err
                 raise UpdateFailed(f"Error communicating with LabTether: {err}") from err
 
+            current_asset_ids = {asset["id"] for asset in assets}
+            seen_asset_ids = self._seen_asset_ids | current_asset_ids
+            if len(seen_asset_ids) > MAX_ASSET_IDENTITIES_PER_ENTRY:
+                raise UpdateFailed(
+                    "LabTether asset identity budget exceeded; reload the integration "
+                    "after confirming the Hub inventory is stable"
+                )
+
+            self._seen_asset_ids = seen_asset_ids
             return LabTetherData(
                 assets=assets,
                 metrics=metrics,

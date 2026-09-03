@@ -3,9 +3,11 @@
 import pytest
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
-from labtether.coordinator import LabTetherData
+import labtether.coordinator as coordinator_module
+from labtether.coordinator import LabTetherCoordinator, LabTetherData
 
 
 def test_labtether_data_structure():
@@ -43,3 +45,27 @@ def test_labtether_data_get_metrics():
     )
     assert data.get_metrics("a1")["cpu_used_percent"] == 50.0
     assert data.get_metrics("missing") == {}
+
+
+@pytest.mark.asyncio
+async def test_coordinator_rejects_asset_identity_churn(monkeypatch):
+    """Fresh IDs across bounded polls must have one shared lifetime ceiling."""
+    monkeypatch.setattr(coordinator_module, "MAX_ASSET_IDENTITIES_PER_ENTRY", 2)
+    api = MagicMock()
+    api.async_get_assets = AsyncMock(
+        side_effect=[
+            [{"id": "asset-1"}],
+            [{"id": "asset-2"}],
+            [{"id": "asset-3"}],
+        ]
+    )
+    api.async_get_metrics_overview = AsyncMock(return_value={})
+    api.async_get_firing_alerts_count = AsyncMock(return_value=0)
+    coordinator = LabTetherCoordinator(MagicMock(), api, "entry-1")
+
+    await coordinator._async_update_data()
+    await coordinator._async_update_data()
+    with pytest.raises(Exception, match="asset identity budget exceeded"):
+        await coordinator._async_update_data()
+
+    assert coordinator._seen_asset_ids == {"asset-1", "asset-2"}

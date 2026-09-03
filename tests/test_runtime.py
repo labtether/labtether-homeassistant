@@ -283,8 +283,8 @@ def test_migrate_entity_unique_ids_updates_entity_registry():
     )
 
 
-def test_remove_disabled_entity_registry_entries_removes_only_disabled_domains():
-    """Disabling an import category must not leave unavailable registry ghosts."""
+def test_reconcile_registry_entries_removes_stale_and_disabled_records():
+    """A complete inventory should bound stale entity and device registry state."""
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "entry-1"
@@ -294,30 +294,64 @@ def test_remove_disabled_entity_registry_entries_removes_only_disabled_domains()
         CONF_IMPORT_SENSORS: False,
         CONF_IMPORT_SWITCHES: True,
     }
+    coordinator = MagicMock()
+    coordinator.data = LabTetherData(
+        assets=[
+            {
+                "id": "vm-1",
+                "name": "VM 1",
+                "type": "vm",
+                "source": "proxmox",
+                "status": "online",
+                "metadata": {},
+            }
+        ],
+        metrics={},
+        firing_alerts_count=0,
+    )
 
     entity_registry = MagicMock()
     entries = []
-    for entity_id, platform in (
-        ("sensor.vm_cpu_usage", "labtether"),
-        ("sensor.hub_total_assets", "labtether"),
-        ("binary_sensor.vm_status", "labtether"),
-        ("switch.vm_power", "labtether"),
-        ("sensor.foreign", "other_integration"),
+    for entity_id, platform, unique_id in (
+        ("sensor.stale_cpu", "labtether", "labtether_entry-1_stale_cpu_used_percent"),
+        ("sensor.hub_total_assets", "labtether", "labtether_entry-1_hub_total_assets"),
+        ("binary_sensor.vm_status", "labtether", "labtether_entry-1_vm-1_status"),
+        ("switch.vm_power", "labtether", "labtether_entry-1_vm-1_power"),
+        ("sensor.foreign", "other_integration", "foreign_unique_id"),
     ):
         entity_entry = MagicMock()
         entity_entry.entity_id = entity_id
         entity_entry.platform = platform
+        entity_entry.unique_id = unique_id
         entries.append(entity_entry)
 
     integration.er.async_get = MagicMock(return_value=entity_registry)
     integration.er.async_entries_for_config_entry = MagicMock(return_value=entries)
+    device_registry = MagicMock()
+    current_device = MagicMock(
+        id="current-device",
+        identifiers={("labtether", asset_registry_key("entry-1", "vm-1"))},
+    )
+    stale_device = MagicMock(
+        id="stale-device",
+        identifiers={("labtether", asset_registry_key("entry-1", "stale"))},
+    )
+    hub_device = MagicMock(
+        id="hub-device",
+        identifiers={("labtether", hub_registry_key("entry-1"))},
+    )
+    integration.dr.async_get = MagicMock(return_value=device_registry)
+    integration.dr.async_entries_for_config_entry = MagicMock(
+        return_value=[current_device, stale_device, hub_device]
+    )
 
-    integration._remove_disabled_entity_registry_entries(hass, entry)
+    integration._reconcile_registry_entries(hass, entry, coordinator)
 
     assert entity_registry.async_remove.call_args_list == [
-        call("sensor.vm_cpu_usage"),
+        call("sensor.stale_cpu"),
         call("sensor.hub_total_assets"),
     ]
+    device_registry.async_remove_device.assert_called_once_with("stale-device")
 
 
 @pytest.mark.asyncio
@@ -380,6 +414,7 @@ async def test_setup_entry_ensures_hub_device_exists():
     assert result is True
     device_registry.async_get_or_create.assert_called_once()
     assert integration.LabTetherCoordinator.call_args.kwargs["scan_interval_seconds"] == DEFAULT_SCAN_INTERVAL
+    coordinator.async_add_listener.assert_called_once()
 
 
 @pytest.mark.asyncio

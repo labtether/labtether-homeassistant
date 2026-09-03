@@ -1,5 +1,5 @@
 # hadolint global ignore=DL3002
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.23@sha256:e976b27157be0f89fd5bd4757ec6377d2576963623deb135246d0f3c5742f462
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede
 # `scratch` is an intentionally non-runnable sentinel. Release and local builds
 # must provide a versioned, registry-resolved digest through
 # --build-arg HUB_IMAGE=...@sha256:; the validator rejects this default.
@@ -29,11 +29,11 @@ RUN apk add --no-cache \
   bash=5.3.3-r1 \
   c-ares=1.34.8-r0 \
   ca-certificates=20260611-r0 \
-  jq=1.8.1-r0 \
-  libcrypto3=3.5.7-r0 \
-  libssl3=3.5.7-r0 \
-  postgresql16=16.14-r0 \
-  postgresql16-client=16.14-r0 \
+  jq=1.8.2-r0 \
+  libcrypto3=3.5.8-r0 \
+  libssl3=3.5.8-r0 \
+  postgresql16=16.15-r0 \
+  postgresql16-client=16.15-r0 \
   su-exec=0.3-r0 \
   && addgroup -S -g 10001 labtether \
   && adduser -S -D -H -u 10001 -G labtether -h /home/labtether -s /sbin/nologin labtether \

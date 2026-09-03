@@ -66,6 +66,7 @@ async def async_setup_entry(
         nonlocal known_asset_ids
         current_asset_ids = _telemetry_asset_ids()
         new_asset_ids = sorted(current_asset_ids - known_asset_ids)
+        known_asset_ids = current_asset_ids
         if not new_asset_ids:
             return
 
@@ -79,7 +80,6 @@ async def async_setup_entry(
                 ]
             )
         async_add_entities(new_entities)
-        known_asset_ids |= set(new_asset_ids)
 
     entry.async_on_unload(coordinator.async_add_listener(_async_add_new_entities))
 
