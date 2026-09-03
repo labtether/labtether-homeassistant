@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
@@ -172,34 +172,72 @@ def _migrate_entity_unique_ids(hass: HomeAssistant, entry: ConfigEntry, coordina
             )
 
 
-def _remove_disabled_entity_registry_entries(
-    hass: HomeAssistant, entry: ConfigEntry
+def _reconcile_registry_entries(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    coordinator: LabTetherCoordinator,
 ) -> None:
-    """Remove registry ghosts for entity categories the operator disabled."""
-    preferences = {
-        "binary_sensor": entry_pref(
-            entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS
-        ),
-        "sensor": entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS),
-        "switch": entry_pref(
-            entry, CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES
-        ),
-    }
-    disabled_domains = {
-        entity_domain
-        for entity_domain, enabled in preferences.items()
-        if not bool(enabled)
-    }
-    if not disabled_domains:
-        return
+    """Remove stale LabTether entities and devices after a complete inventory poll."""
+    entry_id = entry.entry_id
+    expected_unique_ids: set[str] = set()
+    current_device_keys: set[str] = set()
+
+    if entry_pref(entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS):
+        expected_unique_ids.add(f"{DOMAIN}_{entry_id}_hub_status")
+    if entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS):
+        expected_unique_ids.update(
+            {
+                f"{DOMAIN}_{entry_id}_hub_total_assets",
+                f"{DOMAIN}_{entry_id}_hub_active_alerts",
+            }
+        )
+
+    for asset in coordinator.data.assets:
+        asset_id = asset["id"]
+        current_device_keys.add(asset_registry_key(entry_id, asset_id))
+        if entry_pref(entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS):
+            expected_unique_ids.add(f"{DOMAIN}_{entry_id}_{asset_id}_status")
+        if (
+            entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS)
+            and asset.get("type") in TELEMETRY_KINDS
+        ):
+            expected_unique_ids.update(
+                f"{DOMAIN}_{entry_id}_{asset_id}_{metric_key}"
+                for metric_key in (
+                    "cpu_used_percent",
+                    "memory_used_percent",
+                    "disk_used_percent",
+                )
+            )
+        if (
+            entry_pref(entry, CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES)
+            and asset.get("type") in CONTROLLABLE_KINDS
+            and asset.get("source", "") in POWER_ACTION_SOURCES
+        ):
+            expected_unique_ids.add(f"{DOMAIN}_{entry_id}_{asset_id}_power")
 
     entity_registry = er.async_get(hass)
     for entity_entry in list(
-        er.async_entries_for_config_entry(entity_registry, entry.entry_id)
+        er.async_entries_for_config_entry(entity_registry, entry_id)
     ):
-        entity_domain = entity_entry.entity_id.partition(".")[0]
-        if entity_entry.platform == DOMAIN and entity_domain in disabled_domains:
+        if (
+            entity_entry.platform == DOMAIN
+            and entity_entry.unique_id not in expected_unique_ids
+        ):
             entity_registry.async_remove(entity_entry.entity_id)
+
+    asset_key_prefix = f"{entry_id}:asset:"
+    device_registry = dr.async_get(hass)
+    for device_entry in list(
+        dr.async_entries_for_config_entry(device_registry, entry_id)
+    ):
+        labtether_asset_keys = {
+            identifier
+            for identifier_domain, identifier in device_entry.identifiers
+            if identifier_domain == DOMAIN and identifier.startswith(asset_key_prefix)
+        }
+        if labtether_asset_keys and labtether_asset_keys.isdisjoint(current_device_keys):
+            device_registry.async_remove_device(device_entry.id)
 
 
 def _register_run_action_service(hass: HomeAssistant) -> None:
@@ -284,7 +322,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
-    _remove_disabled_entity_registry_entries(hass, entry)
+    _reconcile_registry_entries(hass, entry, coordinator)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
@@ -295,6 +333,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    @callback
+    def _async_reconcile_after_refresh() -> None:
+        _reconcile_registry_entries(hass, entry, coordinator)
+
+    entry.async_on_unload(coordinator.async_add_listener(_async_reconcile_after_refresh))
     _sync_run_action_service(hass)
 
     return True
