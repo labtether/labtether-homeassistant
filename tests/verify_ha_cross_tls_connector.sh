@@ -8,6 +8,20 @@ readonly HA_TLS_VOLUME="ltqa-ha-cross-tls-data"
 readonly HUB_CONTAINER="${LABTETHER_QA_HUB_CONTAINER:?set LABTETHER_QA_HUB_CONTAINER to the candidate hub container}"
 readonly HUB_URL="${LABTETHER_QA_HUB_URL:?set LABTETHER_QA_HUB_URL to the candidate hub HTTPS origin}"
 readonly HUB_TOKEN_PATH="${LABTETHER_QA_HUB_TOKEN_PATH:-/run/labtether/api-token}"
+readonly HUB_CA_FILE="${LABTETHER_QA_HUB_CA_FILE:-}"
+
+if [[ "${HUB_URL}" != https://* ]]; then
+  echo "candidate hub URL must use verified HTTPS" >&2
+  exit 1
+fi
+HUB_CURL_CA_ARGS=()
+if [[ -n "${HUB_CA_FILE}" ]]; then
+  if [[ ! -f "${HUB_CA_FILE}" || -L "${HUB_CA_FILE}" ]]; then
+    echo "candidate hub CA must be a regular, non-symlinked file: ${HUB_CA_FILE}" >&2
+    exit 1
+  fi
+  HUB_CURL_CA_ARGS=(--cacert "${HUB_CA_FILE}")
+fi
 
 if [[ ! -f "${HA_TOKEN_FILE}" || -L "${HA_TOKEN_FILE}" ]]; then
   echo "missing protected disposable Home Assistant token: ${HA_TOKEN_FILE}" >&2
@@ -49,7 +63,22 @@ cleanup() {
 }
 trap cleanup EXIT
 
-hub_token="$(docker exec "${HUB_CONTAINER}" sh -c "cat '${HUB_TOKEN_PATH}'")"
+# Authenticate the candidate Hub before reading either bearer token. This
+# token-free request proves that the chosen CA and hostname match.
+if ! hub_identity="$(
+  curl --disable --noproxy '*' --silent --show-error --fail \
+    --max-filesize 1048576 \
+    --max-time 15 \
+    "${HUB_CURL_CA_ARGS[@]}" \
+    "${HUB_URL%/}/"
+)" \
+  || ! jq -e 'type == "object" and .service == "labtether-hub"' \
+    <<< "${hub_identity}" >/dev/null; then
+  echo "candidate hub TLS or service identity verification failed" >&2
+  exit 1
+fi
+
+hub_token="$(docker exec "${HUB_CONTAINER}" cat -- "${HUB_TOKEN_PATH}")"
 ha_token="$(< "${HA_TOKEN_FILE}")"
 
 connector_test() {
@@ -60,7 +89,8 @@ connector_test() {
     --arg token "${ha_token}" \
     --argjson skip_verify "${skip_verify}" \
     '{base_url:$base_url,token:$token,skip_verify:$skip_verify}' \
-    | curl -ksS \
+    | curl --disable --noproxy '*' --silent --show-error \
+      "${HUB_CURL_CA_ARGS[@]}" \
       --output "${output_file}" \
       --write-out '%{http_code}' \
       --header "Authorization: Bearer ${hub_token}" \
