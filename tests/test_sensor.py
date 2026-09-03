@@ -132,3 +132,11 @@ async def test_sensor_setup_adds_new_telemetry_assets_after_initial_load():
 
     assert len(added_batches[1]) == 3
     assert {entity._asset_id for entity in added_batches[1]} == {"a2"}
+
+    coord.data.assets[-1]["type"] = "network-device"
+    listeners[0]()
+    coord.data.assets[-1]["type"] = "vm"
+    listeners[0]()
+
+    assert len(added_batches) == 3
+    assert {entity._asset_id for entity in added_batches[2]} == {"a2"}

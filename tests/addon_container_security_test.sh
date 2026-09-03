@@ -25,11 +25,11 @@ trap cleanup EXIT
 docker_arch="$(docker info --format '{{.Architecture}}')"
 case "${docker_arch}" in
   amd64 | x86_64)
-    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:e976b27157be0f89fd5bd4757ec6377d2576963623deb135246d0f3c5742f462"
+    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede"
     mutable_build_from="ghcr.io/home-assistant/amd64-base:3.23"
     ;;
   arm64 | aarch64)
-    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:a75b07ed8fdccb58720bd844ad9da7a8fc454fc3f3b313ff75ca6fae4b5b821e"
+    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:e81d9f268833456f9803da051fa95fd8fa4e1fad1f911dec1a489a18701a76f5"
     mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.23"
     ;;
   *)
@@ -157,10 +157,11 @@ assert_mode_owner() {
 assert_mode_owner /data 711:0:0
 assert_mode_owner /data/options.json 600:0:0
 assert_mode_owner /data/labtether-addon 700:10001:10001
-assert_mode_owner /data/labtether-addon/runtime.env 600:10001:10001
 assert_mode_owner /data/labtether-addon/setup-token 600:10001:10001
-assert_mode_owner /data/labtether-addon/setup-token-option.sha256 600:10001:10001
-assert_mode_owner /data/labtether-addon/setup-token-issued.sha256 600:10001:10001
+assert_mode_owner /data/labtether-addon-root 700:0:0
+assert_mode_owner /data/labtether-addon-root/runtime.json 600:0:0
+assert_mode_owner /data/labtether-addon-root/setup-token-option.sha256 600:0:0
+assert_mode_owner /data/labtether-addon-root/setup-token-issued.sha256 600:0:0
 assert_mode_owner /data/install 700:10001:10001
 assert_mode_owner /data/certs 700:10001:10001
 assert_mode_owner /data/agents 750:10001:10001
@@ -193,6 +194,10 @@ docker exec --user 10001:10001 "${CONTAINER_NAME}" sh -c '
     echo "hub user can write to the postgres data directory" >&2
     exit 1
   fi
+  if touch /data/labtether-addon-root/.unexpected-hub-write 2>/dev/null; then
+    echo "hub user can write to root bootstrap state" >&2
+    exit 1
+  fi
 '
 
 container_logs="$(docker logs "${CONTAINER_NAME}" 2>&1)"
@@ -207,6 +212,30 @@ done
 # The issued marker must prevent the option or auto-generation path from
 # recreating a setup token, while the bundled Postgres service must restart.
 docker exec --user 10001:10001 "${CONTAINER_NAME}" rm /data/labtether-addon/setup-token
+# Recreate the exact marker layout from the previous release. The migration
+# must preserve the consumed-token decision without trusting arbitrary data.
+docker exec "${CONTAINER_NAME}" sh -c '
+  mv /data/labtether-addon-root/setup-token-option.sha256 /data/labtether-addon/setup-token-option.sha256
+  mv /data/labtether-addon-root/setup-token-issued.sha256 /data/labtether-addon/setup-token-issued.sha256
+  chown 10001:10001 /data/labtether-addon/setup-token-*.sha256
+'
+# Recreate the old Hub-writable state shape before restart. Its shell payload
+# must not gain root even though valid legacy values still migrate.
+docker exec "${CONTAINER_NAME}" rm /data/labtether-addon-root/runtime.json
+docker exec \
+  --user 10001:10001 \
+  --env "OWNER_TOKEN=${OWNER_TOKEN}" \
+  --env "ENCRYPTION_KEY=${ENCRYPTION_KEY}" \
+  "${CONTAINER_NAME}" sh -c '
+    set -eu
+    {
+      printf "LABTETHER_OWNER_TOKEN=%s\n" "${OWNER_TOKEN}"
+      printf "LABTETHER_ENCRYPTION_KEY=%s\n" "${ENCRYPTION_KEY}"
+      printf "%s\n" "DATABASE_URL=postgres://labtether@127.0.0.1:5432/labtether?sslmode=disable"
+      printf "%s\n" "DATABASE_MODE=local"
+      printf "%s\n" "touch /data/root-env-pwned 2>/dev/null || true"
+    } > /data/labtether-addon/runtime.env
+  '
 docker rm -f "${CONTAINER_NAME}" >/dev/null
 docker run --detach \
   --name "${CONTAINER_NAME}" \
@@ -241,6 +270,26 @@ if docker exec "${CONTAINER_NAME}" test -e /data/labtether-addon/setup-token; th
   echo "consumed setup token was recreated on restart" >&2
   exit 1
 fi
+if docker exec "${CONTAINER_NAME}" test -e /data/root-env-pwned; then
+  echo "legacy Hub-writable state executed with root privileges" >&2
+  exit 1
+fi
+if docker exec "${CONTAINER_NAME}" test -e /data/labtether-addon/runtime.env; then
+  echo "legacy runtime state was not removed after migration" >&2
+  exit 1
+fi
+if docker exec "${CONTAINER_NAME}" sh -c 'test -e /data/labtether-addon/setup-token-option.sha256 || test -e /data/labtether-addon/setup-token-issued.sha256'; then
+  echo "legacy setup-token markers were not removed after migration" >&2
+  exit 1
+fi
+assert_mode_owner /data/labtether-addon-root/runtime.json 600:0:0
+assert_mode_owner /data/labtether-addon-root/setup-token-option.sha256 600:0:0
+assert_mode_owner /data/labtether-addon-root/setup-token-issued.sha256 600:0:0
+docker exec "${CONTAINER_NAME}" jq -e '
+  .LABTETHER_OWNER_TOKEN != ""
+  and .LABTETHER_ENCRYPTION_KEY != ""
+  and .DATABASE_MODE == "local"
+' /data/labtether-addon-root/runtime.json >/dev/null
 if ! docker exec "${CONTAINER_NAME}" pg_isready -h 127.0.0.1 -p 5432 -U labtether >/dev/null; then
   echo "bundled Postgres did not restart with persisted local database state" >&2
   exit 1
