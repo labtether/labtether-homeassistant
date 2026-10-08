@@ -43,6 +43,7 @@ RUN apk add --no-cache \
 
 COPY --from=hub /usr/local/bin/labtether /usr/local/bin/labtether
 COPY addon/labtether/run.sh /run.sh
+COPY addon/labtether/lib/ /usr/local/lib/labtether-addon/
 RUN chmod +x /run.sh
 
 # The entrypoint needs root only to prepare mounted volumes and start the local
