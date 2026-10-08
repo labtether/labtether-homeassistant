@@ -25,13 +25,13 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 COPY --from=reference-validator /immutable-inputs-verified /immutable-inputs-verified
 
-RUN apk add --no-cache \
+RUN apk add --update-cache --no-cache \
   bash=5.3.3-r1 \
   c-ares=1.34.8-r0 \
-  ca-certificates=20260611-r0 \
+  ca-certificates=20260909-r0 \
   jq=1.8.2-r0 \
-  libcrypto3=3.5.8-r0 \
-  libssl3=3.5.8-r0 \
+  libcrypto3=3.5.9-r0 \
+  libssl3=3.5.9-r0 \
   postgresql16=16.15-r0 \
   postgresql16-client=16.15-r0 \
   su-exec=0.3-r0 \
@@ -43,6 +43,7 @@ RUN apk add --no-cache \
 
 COPY --from=hub /usr/local/bin/labtether /usr/local/bin/labtether
 COPY addon/labtether/run.sh /run.sh
+COPY addon/labtether/lib/ /usr/local/lib/labtether-addon/
 RUN chmod +x /run.sh
 
 # The entrypoint needs root only to prepare mounted volumes and start the local

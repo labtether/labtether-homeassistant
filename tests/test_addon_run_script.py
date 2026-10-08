@@ -10,6 +10,13 @@ from pathlib import Path
 
 
 RUN_SCRIPT = Path(__file__).parents[1] / "addon" / "labtether" / "run.sh"
+RUN_HELPERS = RUN_SCRIPT.parent / "lib"
+
+
+def entrypoint_source():
+    return RUN_SCRIPT.read_text() + "\n".join(p.read_text() for p in sorted(RUN_HELPERS.glob("*.sh")))
+
+
 ADDON_CONFIG = Path(__file__).parents[1] / "addon" / "labtether" / "config.json"
 DOCKERFILE = Path(__file__).parents[1] / "addon" / "labtether" / "Dockerfile"
 CI_WORKFLOWS = tuple((Path(__file__).parents[1] / ".github" / "workflows").glob("*.yml"))
@@ -19,12 +26,13 @@ TLS_CONNECTOR_SCRIPT = Path(__file__).parent / "verify_ha_cross_tls_connector.sh
 
 
 def test_run_script_has_valid_bash_syntax():
-    subprocess.run(["bash", "-n", RUN_SCRIPT], check=True)
+    for script in (RUN_SCRIPT, *RUN_HELPERS.glob("*.sh")):
+        subprocess.run(["bash", "-n", script], check=True)
 
 
 def test_setup_token_is_one_time_file_backed_secret():
     """A consumed setup token must not be restored from persistent env state."""
-    run_script = RUN_SCRIPT.read_text()
+    run_script = entrypoint_source()
 
     assert 'persist_state_value "LABTETHER_SETUP_TOKEN"' not in run_script
     assert "setup-token-option.sha256" in run_script
@@ -36,7 +44,7 @@ def test_setup_token_is_one_time_file_backed_secret():
 
 
 def test_hub_drops_to_dedicated_nonroot_user_with_scoped_writable_paths():
-    run_script = RUN_SCRIPT.read_text()
+    run_script = entrypoint_source()
     dockerfile = DOCKERFILE.read_text()
 
     assert "adduser -S -D -H -u 10001" in dockerfile
@@ -52,7 +60,7 @@ def test_hub_drops_to_dedicated_nonroot_user_with_scoped_writable_paths():
 
 def test_root_bootstrap_never_sources_hub_writable_state():
     """Legacy shell state may run only after dropping to the Hub user."""
-    run_script = RUN_SCRIPT.read_text()
+    run_script = entrypoint_source()
 
     assert 'readonly STATE_JSON_FILE="${ROOT_STATE_DIR}/runtime.json"' in run_script
     assert "migrate_legacy_setup_markers" in run_script
@@ -100,7 +108,7 @@ def test_dependabot_covers_all_supply_chain_ecosystems_with_cooldown():
 
 
 def test_blank_admin_password_selects_setup_flow_instead_of_generated_password():
-    run_script = RUN_SCRIPT.read_text()
+    run_script = entrypoint_source()
 
     assert 'require_or_generate "LABTETHER_ADMIN_PASSWORD"' not in run_script
     assert 'LABTETHER_ADMIN_PASSWORD="${ADMIN_PASSWORD_OPT:-${PROCESS_ADMIN_PASSWORD}}"' in run_script
