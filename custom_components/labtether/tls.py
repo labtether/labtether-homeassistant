@@ -6,23 +6,22 @@ import os
 from pathlib import Path
 import ssl
 
-import certifi
-
 from .api import HubCACertificateError
 
 MAX_CA_BUNDLE_BYTES = 1024 * 1024
 
 
 def load_hub_ca_context(ca_certificate: str) -> ssl.SSLContext:
-    """Add one operator-supplied CA to the normal Home Assistant CA bundle."""
+    """Add one operator-supplied CA to the system and configured CA roots."""
     path = Path(ca_certificate)
     try:
         if not path.is_absolute() or not path.is_file():
             raise ValueError("expected an absolute path to a CA PEM file")
         if path.stat().st_size > MAX_CA_BUNDLE_BYTES:
             raise ValueError("CA PEM file is too large")
-        default_bundle = os.environ.get("REQUESTS_CA_BUNDLE") or certifi.where()
-        context = ssl.create_default_context(cafile=default_bundle)
+        context = ssl.create_default_context()
+        if default_bundle := os.environ.get("REQUESTS_CA_BUNDLE"):
+            context.load_verify_locations(cafile=default_bundle)
         context.load_verify_locations(cafile=str(path))
         context.set_alpn_protocols(["http/1.1"])
         return context

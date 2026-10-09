@@ -7,7 +7,6 @@ import subprocess
 import sys
 
 import aiohttp
-import certifi
 import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
@@ -60,7 +59,7 @@ async def test_custom_ca_preserves_certificate_and_hostname_checks(tmp_path):
     server_context.load_cert_chain(server_cert, server_key)
     server = await asyncio.start_server(_hub_response, "127.0.0.1", 0, ssl=server_context)
     port = server.sockets[0].getsockname()[1]
-    default_context = ssl.create_default_context(cafile=certifi.where())
+    default_context = ssl.create_default_context()
     try:
         async with aiohttp.ClientSession(connector=aiohttp.TCPConnector(ssl=default_context)) as session:
             untrusted = LabTetherApiClient(f"https://localhost:{port}", "test-key", session)
