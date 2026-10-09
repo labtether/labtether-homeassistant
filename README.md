@@ -24,6 +24,15 @@ registry cleanup, outage recovery, restart, and removal behavior.
 
 ## Installation
 
+### Home Assistant add-on (experimental)
+
+In **Settings > Add-ons > Add-on Store**, add
+`https://github.com/labtether/labtether-homeassistant#homeassistant-addon-repo`.
+The branch suffix selects the published add-on repository layout. See
+[`addon/labtether/DOCS.md`](addon/labtether/DOCS.md) for the first-run setup token
+and database options. The add-on runs the Hub; install the custom integration
+separately if you want LabTether entities in Home Assistant.
+
 ### HACS (recommended)
 
 Add this repository as a [custom repository](https://hacs.xyz/docs/faq/custom_repositories/) in HACS with category "Integration".
