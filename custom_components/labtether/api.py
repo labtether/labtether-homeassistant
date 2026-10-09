@@ -6,6 +6,7 @@ import asyncio
 from ipaddress import ip_address
 import json
 import logging
+from ssl import SSLContext
 from typing import Any
 from urllib.parse import urlparse
 
@@ -91,6 +92,10 @@ class LabTetherApiError(Exception):
     """Exception for LabTether API errors."""
 
 
+class HubCACertificateError(LabTetherApiError):
+    """The configured Hub CA certificate could not be used."""
+
+
 class LabTetherApiClient:
     """Client to interact with the LabTether REST API."""
 
@@ -101,6 +106,7 @@ class LabTetherApiClient:
         session: ClientSession,
         ignore_cert_errors: bool = False,
         allow_insecure_http: bool = False,
+        ssl_context: SSLContext | None = None,
     ) -> None:
         self._host = host.rstrip("/")
         if not hub_origin_is_valid(
@@ -111,6 +117,9 @@ class LabTetherApiClient:
         self._api_key = api_key
         self._session = session
         self._ignore_cert_errors = ignore_cert_errors
+        if ignore_cert_errors and ssl_context is not None:
+            raise LabTetherApiError("CA certificate and TLS bypass cannot be combined")
+        self._ssl_context = ssl_context
 
     @property
     def host(self) -> str:
@@ -129,6 +138,8 @@ class LabTetherApiClient:
         }
         if self._ignore_cert_errors:
             request_kwargs["ssl"] = False
+        elif self._ssl_context is not None:
+            request_kwargs["ssl"] = self._ssl_context
         return request_kwargs
 
     @staticmethod

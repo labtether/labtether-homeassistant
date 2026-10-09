@@ -10,11 +10,13 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import LabTetherApiClient, LabTetherApiError, hub_origin_is_valid
+from .api import HubCACertificateError, LabTetherApiClient, LabTetherApiError, hub_origin_is_valid
+from .tls import async_load_hub_ca_context
 from .const import (
     DOMAIN,
     CONF_HOST,
     CONF_API_KEY,
+    CONF_CA_CERTIFICATE,
     CONF_ALLOW_INSECURE_HTTP,
     CONF_NAME,
     CONF_IGNORE_CERT_ERRORS,
@@ -44,6 +46,7 @@ def _connection_schema(defaults: dict | None = None) -> vol.Schema:
         {
             vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
             vol.Required(CONF_API_KEY, default=defaults.get(CONF_API_KEY, "")): str,
+            vol.Optional(CONF_CA_CERTIFICATE, default=defaults.get(CONF_CA_CERTIFICATE, "")): str,
             vol.Optional(CONF_NAME, default=defaults.get(CONF_NAME, "")): str,
             vol.Optional(CONF_IGNORE_CERT_ERRORS, default=bool(defaults.get(CONF_IGNORE_CERT_ERRORS, False))): bool,
             vol.Optional(
@@ -60,6 +63,7 @@ def _connection_retry_defaults(user_input: dict | None = None) -> dict:
     return {
         CONF_HOST: user_input.get(CONF_HOST, ""),
         CONF_API_KEY: "",
+        CONF_CA_CERTIFICATE: user_input.get(CONF_CA_CERTIFICATE, ""),
         CONF_NAME: user_input.get(CONF_NAME, ""),
         CONF_IGNORE_CERT_ERRORS: bool(
             user_input.get(CONF_IGNORE_CERT_ERRORS, False)
@@ -156,6 +160,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return {
             "title": self._default_title(pending_data, preview),
             "host": str(pending_data.get(CONF_HOST, "")),
+            "ca_certificate": str(pending_data.get(CONF_CA_CERTIFICATE, "")) or "System trust store",
             "ignore_cert_errors": "Enabled" if pending_data.get(CONF_IGNORE_CERT_ERRORS) else "Disabled",
             "allow_insecure_http": "Enabled" if pending_data.get(CONF_ALLOW_INSECURE_HTTP) else "Disabled",
             "import_status_entities": "Yes" if pending_options.get(CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS) else "No",
@@ -205,25 +210,34 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         ):
             return None, "invalid_url"
         normalized_host = self._normalize_host(candidate_host)
+        ca_certificate = str(user_input.get(CONF_CA_CERTIFICATE, "")).strip()
+        ignore_cert_errors = bool(user_input.get(CONF_IGNORE_CERT_ERRORS, False))
+        if ca_certificate and (ignore_cert_errors or normalized_host.startswith("http://")):
+            return None, "invalid_tls_config"
 
         try:
             session = async_get_clientsession(self.hass)
+            ssl_context = await async_load_hub_ca_context(self.hass, ca_certificate)
             client = LabTetherApiClient(
                 host=normalized_host,
                 api_key=user_input[CONF_API_KEY],
                 session=session,
-                ignore_cert_errors=bool(user_input.get(CONF_IGNORE_CERT_ERRORS)),
+                ignore_cert_errors=ignore_cert_errors,
                 allow_insecure_http=allow_insecure_http,
+                ssl_context=ssl_context,
             )
             preview = await client.async_get_setup_preview()
             data = {
                 CONF_HOST: normalized_host,
                 CONF_API_KEY: user_input[CONF_API_KEY],
+                CONF_CA_CERTIFICATE: ca_certificate,
                 CONF_NAME: user_input.get(CONF_NAME, "").strip(),
-                CONF_IGNORE_CERT_ERRORS: bool(user_input.get(CONF_IGNORE_CERT_ERRORS, False)),
+                CONF_IGNORE_CERT_ERRORS: ignore_cert_errors,
                 CONF_ALLOW_INSECURE_HTTP: allow_insecure_http,
             }
             return {"data": data, "preview": preview}, None
+        except HubCACertificateError:
+            return None, "invalid_ca_certificate"
         except LabTetherApiError as err:
             return None, self._classify_api_error(err)
         except Exception:  # noqa: BLE001
@@ -332,6 +346,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         defaults = {
             CONF_HOST: entry.data.get(CONF_HOST, ""),
             CONF_API_KEY: "",
+            CONF_CA_CERTIFICATE: entry.data.get(CONF_CA_CERTIFICATE, ""),
             CONF_NAME: entry.data.get(CONF_NAME, ""),
             CONF_IGNORE_CERT_ERRORS: bool(
                 entry.options.get(
@@ -371,6 +386,7 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             reauth_data = {
                 CONF_HOST: entry.data.get(CONF_HOST, ""),
                 CONF_API_KEY: user_input[CONF_API_KEY],
+                CONF_CA_CERTIFICATE: entry.data.get(CONF_CA_CERTIFICATE, ""),
                 CONF_NAME: entry.data.get(CONF_NAME, ""),
                 CONF_IGNORE_CERT_ERRORS: bool(user_input.get(CONF_IGNORE_CERT_ERRORS, False)),
                 CONF_ALLOW_INSECURE_HTTP: bool(
@@ -427,7 +443,9 @@ class LabTetherOptionsFlow(config_entries.OptionsFlow):
         errors = {}
         if user_input is not None:
             scan_interval = parse_scan_interval(user_input.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL))
-            if scan_interval is None:
+            if user_input.get(CONF_IGNORE_CERT_ERRORS) and self.config_entry.data.get(CONF_CA_CERTIFICATE):
+                errors["base"] = "invalid_tls_config"
+            elif scan_interval is None:
                 errors[CONF_SCAN_INTERVAL] = "invalid_scan_interval"
             else:
                 options = dict(user_input)

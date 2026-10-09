@@ -11,6 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
 from labtether.const import (
     CONF_API_KEY,
+    CONF_CA_CERTIFICATE,
     CONF_ALLOW_INSECURE_HTTP,
     CONF_ENABLE_RUN_ACTION_SERVICE,
     CONF_HOST,
@@ -54,6 +55,7 @@ def test_config_flow_data_schema_requires_host_and_key():
     result = USER_DATA_SCHEMA({"host": "http://localhost:8080", "api_key": "test"})
     assert result["host"] == "http://localhost:8080"
     assert result["api_key"] == "test"
+    assert result[CONF_CA_CERTIFICATE] == ""
     assert "name" in result
     assert "ignore_cert_errors" in result
     assert result[CONF_ALLOW_INSECURE_HTTP] is False
@@ -62,6 +64,22 @@ def test_config_flow_data_schema_requires_host_and_key():
 def test_config_flow_domain_is_set():
     """Config flow should be registered for the labtether domain."""
     assert DOMAIN == "labtether"
+
+
+@pytest.mark.asyncio
+async def test_config_flow_rejects_ca_with_certificate_bypass():
+    """A configured CA must never coexist with disabled certificate checks."""
+    from labtether.config_flow import LabTetherConfigFlow
+
+    flow = LabTetherConfigFlow()
+    flow.hass = MagicMock()
+    result = await flow.async_step_user({
+        CONF_HOST: "https://lab.local:8443",
+        CONF_API_KEY: "token",
+        CONF_CA_CERTIFICATE: "/config/labtether-ca.pem",
+        CONF_IGNORE_CERT_ERRORS: True,
+    })
+    assert result["errors"]["base"] == "invalid_tls_config"
 
 
 @pytest.mark.asyncio

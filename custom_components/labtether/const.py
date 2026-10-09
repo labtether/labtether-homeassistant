@@ -4,6 +4,7 @@ DOMAIN = "labtether"
 
 CONF_HOST = "host"
 CONF_API_KEY = "api_key"
+CONF_CA_CERTIFICATE = "ca_certificate"
 CONF_NAME = "name"
 CONF_IGNORE_CERT_ERRORS = "ignore_cert_errors"
 CONF_ALLOW_INSECURE_HTTP = "allow_insecure_http"

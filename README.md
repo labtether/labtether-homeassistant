@@ -55,8 +55,12 @@ Copy the `custom_components/labtether` directory into your Home Assistant `confi
 3. On **Connect to LabTether Hub**, enter:
    - your LabTether hub URL (for example `https://lab.local:8443`),
    - a dedicated least-privilege API key for this Home Assistant instance,
+   - for a private CA, the absolute path to its PEM file **inside Home Assistant**
+     (for example `/config/labtether-ca.pem`),
    - an optional display name.
-4. Enable **Ignore TLS certificate errors** only when you intentionally use a self-signed LabTether hub certificate and trust that endpoint.
+4. Copy a private CA PEM into Home Assistant's config folder before setup. The
+   CA path keeps certificate and hub-name checks on. Do not combine it with
+   **Ignore TLS certificate errors**. That bypass is for deliberate legacy use.
 5. LabTether requires HTTPS except for loopback addresses. Enable **Allow API key over insecure HTTP** only when you explicitly accept that the bearer credential will cross the network without transport encryption.
 6. Continue to **Choose What To Import** and review the live preview:
    - asset count,
@@ -83,7 +87,10 @@ After setup, open the LabTether integration entry and use **Configure** to updat
 
 If the API key becomes invalid, Home Assistant can now drive a reauthentication flow for the LabTether entry instead of forcing remove/re-add.
 
-If the hub URL, HTTPS policy, or other required connection details change, use **Reconfigure** on the integration entry to update the connection in place.
+If the hub URL, CA file path, HTTPS policy, or other required connection details
+change, use **Reconfigure** on the integration entry to update the connection in
+place. Keep the CA file available after restart; Home Assistant retries setup if
+the file is temporarily missing.
 
 If a LabTether asset is removed permanently, Home Assistant can now remove its stale device entry cleanly from the device registry.
 

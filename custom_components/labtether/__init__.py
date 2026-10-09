@@ -9,13 +9,16 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
+from homeassistant.exceptions import ConfigEntryNotReady
 import voluptuous as vol
 
-from .api import LabTetherApiClient
+from .api import HubCACertificateError, LabTetherApiClient
+from .tls import async_load_hub_ca_context
 from .const import (
     DOMAIN,
     CONF_HOST,
     CONF_API_KEY,
+    CONF_CA_CERTIFICATE,
     CONF_ALLOW_INSECURE_HTTP,
     CONF_IGNORE_CERT_ERRORS,
     CONF_ENABLE_RUN_ACTION_SERVICE,
@@ -59,7 +62,7 @@ def _run_action_enabled(entry: ConfigEntry) -> bool:
     return bool(entry_pref(entry, CONF_ENABLE_RUN_ACTION_SERVICE, DEFAULT_ENABLE_RUN_ACTION_SERVICE))
 
 
-def _build_client(hass: HomeAssistant, entry: ConfigEntry) -> LabTetherApiClient:
+def _build_client(hass: HomeAssistant, entry: ConfigEntry, ssl_context=None) -> LabTetherApiClient:
     session = async_get_clientsession(hass)
     return LabTetherApiClient(
         host=entry.data[CONF_HOST],
@@ -69,6 +72,7 @@ def _build_client(hass: HomeAssistant, entry: ConfigEntry) -> LabTetherApiClient
         allow_insecure_http=bool(
             entry.data.get(CONF_ALLOW_INSECURE_HTTP, DEFAULT_ALLOW_INSECURE_HTTP)
         ),
+        ssl_context=ssl_context,
     )
 
 
@@ -312,7 +316,13 @@ async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up LabTether from a config entry."""
-    client = _build_client(hass, entry)
+    try:
+        ssl_context = await async_load_hub_ca_context(
+            hass, entry.data.get(CONF_CA_CERTIFICATE, "")
+        )
+    except HubCACertificateError as err:
+        raise ConfigEntryNotReady("LabTether CA certificate is unavailable") from err
+    client = _build_client(hass, entry, ssl_context)
     _ensure_hub_device(hass, entry, client)
     coordinator = LabTetherCoordinator(
         hass,
