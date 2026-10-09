@@ -54,12 +54,10 @@ jobs:
             --head "${GITHUB_SHA}"
 
   test:
+    name: test (3.14)
     needs: [line-limit]
     if: always()
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - name: Require source-size gate
         shell: bash
@@ -71,10 +69,10 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python ${{ matrix.python-version }}
+      - name: Set up Python 3.14
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.14"
           cache: pip
           cache-dependency-path: requirements-dev.txt
 
