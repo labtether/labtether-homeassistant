@@ -152,6 +152,15 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Require public pull access for both add-on images
+        env:
+          IMAGE_PREFIX: ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon
+          ADDON_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          python3 scripts/release/check_public_image.py \
+            --image "${IMAGE_PREFIX}-amd64:${ADDON_VERSION}" \
+            --image "${IMAGE_PREFIX}-aarch64:${ADDON_VERSION}"
+
       - name: Package Home Assistant repository layout
         env:
           ADDON_VERSION: ${{ needs.prepare.outputs.version }}
