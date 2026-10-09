@@ -3,10 +3,11 @@
     "step": {
       "user": {
         "title": "Connect to LabTether Hub",
-        "description": "Connect Home Assistant to an existing LabTether hub. HTTPS is required except for loopback addresses. Enable insecure HTTP only when you explicitly accept sending the API key without transport encryption; use the TLS toggle only when you intentionally trust a self-signed certificate.",
+        "description": "Connect Home Assistant to an existing LabTether hub. HTTPS is required except for loopback addresses. For a private CA, place its PEM file inside Home Assistant and enter its absolute path; keep certificate checks enabled. Insecure HTTP and TLS bypass require explicit consent.",
         "data": {
           "host": "Hub URL",
           "api_key": "API Key",
+          "ca_certificate": "CA certificate PEM path (optional)",
           "name": "Display Name",
           "ignore_cert_errors": "Ignore TLS certificate errors",
           "allow_insecure_http": "Allow API key over insecure HTTP"
@@ -25,7 +26,7 @@
       },
       "review": {
         "title": "Review Setup",
-        "description": "- **Title:** {title}\n- **Hub:** {host}\n- **Ignore TLS certificate errors:** {ignore_cert_errors}\n- **Allow insecure HTTP:** {allow_insecure_http}\n- **Import status entities:** {import_status_entities}\n- **Import telemetry sensors:** {import_telemetry_sensors}\n- **Import power switches:** {import_power_switches}\n- **Enable run_action service:** {enable_run_action_service}\n- **Polling interval:** {scan_interval}s\n- **Preview:** {asset_count} assets, {alerts_count} active alerts.",
+        "description": "- **Title:** {title}\n- **Hub:** {host}\n- **CA certificate:** {ca_certificate}\n- **Ignore TLS certificate errors:** {ignore_cert_errors}\n- **Allow insecure HTTP:** {allow_insecure_http}\n- **Import status entities:** {import_status_entities}\n- **Import telemetry sensors:** {import_telemetry_sensors}\n- **Import power switches:** {import_power_switches}\n- **Enable run_action service:** {enable_run_action_service}\n- **Polling interval:** {scan_interval}s\n- **Preview:** {asset_count} assets, {alerts_count} active alerts.",
         "data": {}
       },
       "reconfigure": {
@@ -34,6 +35,7 @@
         "data": {
           "host": "Hub URL",
           "api_key": "API Key",
+          "ca_certificate": "CA certificate PEM path (optional)",
           "name": "Display Name",
           "ignore_cert_errors": "Ignore TLS certificate errors",
           "allow_insecure_http": "Allow API key over insecure HTTP"
@@ -51,9 +53,11 @@
     "error": {
       "cannot_connect": "Cannot connect to the LabTether hub. Check the URL, API key, and network path.",
       "invalid_auth": "The LabTether API key was rejected.",
+      "invalid_ca_certificate": "The CA certificate file must exist inside Home Assistant and contain valid PEM certificates.",
+      "invalid_tls_config": "Choose the CA certificate path with HTTPS and keep Ignore TLS certificate errors off.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds.",
       "invalid_url": "Enter a credential-free HTTPS hub origin. Plain HTTP requires loopback or explicit insecure-HTTP consent.",
-      "tls_error": "TLS validation failed. If you intentionally use a self-signed hub certificate, enable the ignore-certificate toggle and try again.",
+      "tls_error": "TLS validation failed. For a private CA, add its PEM path and keep certificate checks enabled.",
       "unknown": "An unexpected error occurred."
     },
     "abort": {
@@ -78,6 +82,7 @@
       }
     },
     "error": {
+      "invalid_tls_config": "Turn off Ignore TLS certificate errors while a CA certificate path is configured.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds."
     }
   }
