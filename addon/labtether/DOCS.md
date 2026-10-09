@@ -1,5 +1,9 @@
 # LabTether Home Assistant Add-on
 
+Add `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-repo`
+under **Settings > Add-ons > Add-on Store**. The branch suffix selects the
+published add-on repository layout.
+
 ## Configuration
 
 - `labtether_owner_token`: owner API token (optional when `auto_generate_credentials=true`)
