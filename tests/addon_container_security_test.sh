@@ -8,6 +8,7 @@ readonly ALPINE_IMAGE="alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913a
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
 readonly DATA_VOLUME="labtether-ha-addon-security-data-$$-${RANDOM}"
+readonly ENV_TEST_ORIGIN="https://ltqa-env.invalid:8443"
 OWNER_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
 readonly OWNER_TOKEN
 SETUP_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
@@ -93,6 +94,7 @@ JSON
 docker run --detach \
   --name "${CONTAINER_NAME}" \
   --env GOMAXPROCS=2 \
+  --env "LABTETHER_EXTERNAL_URL=${ENV_TEST_ORIGIN}" \
   --volume "${DATA_VOLUME}:/data" \
   "${IMAGE_TAG}" >/dev/null
 
@@ -125,15 +127,6 @@ if [[ "${hub_uid}" != "10001" ]]; then
   exit 1
 fi
 
-# s6 must preserve deployment configuration through the image's real CMD.
-# Inspect only this non-secret value; never print the process environment.
-if ! docker exec "${CONTAINER_NAME}" sh -c '
-  tr "\000" "\n" < "/proc/$1/environ" | grep -Fxq "GOMAXPROCS=2"
-' _ "${hub_pid}"; then
-  echo "hub lost its configured container environment during startup" >&2
-  exit 1
-fi
-
 # Seeing the hub process is not enough to prove startup has finished: the hub
 # creates its automatic TLS key material after the process becomes visible.
 # Wait for the HTTPS health endpoint before inspecting those generated files so
@@ -150,6 +143,19 @@ for _ in $(seq 1 30); do
 done
 if [[ "${https_ready}" != "true" ]]; then
   echo "hub HTTPS health endpoint did not become ready" >&2
+  exit 1
+fi
+
+# Check preserved configuration through the public discovery response.
+# Stay on loopback; never resolve or follow the advertised external URL.
+if ! docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+  bash -se -o pipefail -- "${ENV_TEST_ORIGIN}" <<'SH'
+curl --disable --insecure --silent --show-error --fail --max-time 5 \
+  --noproxy '*' --max-redirs 0 https://127.0.0.1:8443/api/v1/discover \
+  | jq --exit-status --arg expected "$1" '.hub_url == $expected' >/dev/null
+SH
+then
+  echo "hub did not advertise its configured external URL" >&2
   exit 1
 fi
 

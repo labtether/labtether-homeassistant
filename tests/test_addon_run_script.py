@@ -93,10 +93,12 @@ def test_ci_actions_and_python_test_dependencies_are_immutable():
     requirements = DEV_REQUIREMENTS.read_text()
     assert "--hash=sha256:" in requirements
     assert "homeassistant==" not in requirements
-    assert "aiohttp==3.14.3" in requirements
-    assert "pytest==9.1.1" in requirements
-    assert "pytest-asyncio==1.4.0" in requirements
-    assert "voluptuous==0.16.0" in requirements
+    for line in DEV_REQUIREMENTS.with_suffix(".in").read_text().splitlines():
+        requirement = line.strip()
+        if not requirement or requirement.startswith("#"):
+            continue
+        assert re.fullmatch(r"[\w.-]+==[\w.+-]+", requirement)
+        assert re.search(rf"^{re.escape(requirement)}(?:\s|$)", requirements, re.MULTILINE)
 
 
 def test_dependabot_covers_all_supply_chain_ecosystems_with_cooldown():
