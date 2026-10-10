@@ -10,3 +10,5 @@ addon-installed-container	scripts/release/**	Add-on repository packaging changes
 addon-installed-container	.github/workflows/addon-release.yml	Add-on release changes require an installed container proof
 addon-installed-container	scripts/ci/**	QA contract changes must prove every slow Home Assistant contract
 addon-installed-container	.github/workflows/ci.yml	CI routing changes must prove every slow Home Assistant contract
+addon-installed-container	tests/addon_container_security_test.sh	The installed container check must run when its own behavior changes
+addon-installed-container	.dockerignore	Container context exclusions can change the installed add-on package
