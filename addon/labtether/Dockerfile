@@ -1,5 +1,5 @@
 # hadolint global ignore=DL3002
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743
 # `scratch` is an intentionally non-runnable sentinel. Release and local builds
 # must provide a versioned, registry-resolved digest through
 # --build-arg HUB_IMAGE=...@sha256:; the validator rejects this default.
@@ -25,8 +25,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 COPY --from=reference-validator /immutable-inputs-verified /immutable-inputs-verified
 
+# Keep PostgreSQL 16 data directories usable; a major upgrade needs an explicit
+# pg_upgrade or dump/restore path before changing the persisted database format.
 RUN apk add --update-cache --no-cache \
-  bash=5.3.3-r1 \
+  bash=5.3.9-r1 \
   c-ares=1.34.8-r0 \
   ca-certificates=20260909-r0 \
   jq=1.8.2-r0 \
@@ -51,4 +53,6 @@ RUN chmod +x /run.sh
 # nosemgrep: dockerfile.security.last-user-is-root.last-user-is-root -- root is the HA supervisor only; run.sh executes the network-facing hub as UID/GID 10001.
 USER root
 
-CMD ["/run.sh"]
+# s6 clears Docker/Supervisor environment variables before launching CMD.
+# Restore them so external TLS paths and runtime limits reach the bootstrap.
+CMD ["/command/with-contenv", "/run.sh"]

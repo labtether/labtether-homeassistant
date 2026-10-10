@@ -50,7 +50,9 @@ certificate, recording, and runtime directories remain mode `0700`.
 When external TLS files are configured through `LABTETHER_TLS_CERT` and
 `LABTETHER_TLS_KEY`, the root bootstrap copies them into the private runtime
 directory with restrictive permissions before dropping privileges. Symlinked
-TLS inputs and symlinked persisted runtime roots are rejected.
+TLS inputs and symlinked persisted runtime roots are rejected. External
+TLS files should live under `/ssl`, which is mounted read-only. The add-on
+does not mount the household Home Assistant configuration or shared files.
 
 ## Networking
 

@@ -67,6 +67,7 @@ async def test_get_assets_returns_filtered_list(api_client):
         "assets": [
             {"id": "pve-node-1", "name": "Node1", "type": "hypervisor-node", "source": "proxmox", "status": "online", "metadata": {}},
             {"id": "ha-light-1", "name": "Light", "type": "ha-entity", "source": "home-assistant", "status": "online", "metadata": {}},
+            {"id": "ha-light-2", "name": "Light 2", "type": "ha-entity", "source": "homeassistant", "status": "online", "metadata": {}},
         ]
     }
     api_client._session.request = MagicMock(return_value=_mock_response(mock_data))
@@ -115,7 +116,7 @@ async def test_get_assets_rejects_missing_or_over_budget_snapshot(api_client):
         },
         {
             "assets": [
-                {"id": f"ha-{index}", "source": "home-assistant"}
+                {"id": f"ha-{index}", "source": "homeassistant"}
                 for index in range(MAX_ASSETS_PER_RESPONSE + 1)
             ]
         },

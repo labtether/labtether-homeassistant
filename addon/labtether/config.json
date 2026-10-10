@@ -19,7 +19,7 @@
     "8080/tcp": null,
     "8443/tcp": 8443
   },
-  "map": ["config:rw", "ssl:rw", "share:rw"],
+  "map": ["ssl:ro"],
   "options": {
     "labtether_owner_token": "",
     "labtether_admin_password": "",

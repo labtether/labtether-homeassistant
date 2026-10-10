@@ -17,7 +17,7 @@ from .const import (
     API_METRICS_OVERVIEW,
     API_ALERTS_INSTANCES,
     API_ACTIONS_EXECUTE,
-    EXCLUDED_SOURCE,
+    EXCLUDED_SOURCES,
     MAX_ASSETS_PER_RESPONSE,
     MAX_ASSET_FIELD_LENGTH,
     MAX_ASSET_ID_LENGTH,
@@ -278,7 +278,7 @@ class LabTetherApiClient:
             if "metadata" in asset and not isinstance(asset["metadata"], dict):
                 raise LabTetherApiError("API returned invalid asset metadata")
 
-            if asset.get("source") == EXCLUDED_SOURCE:
+            if asset.get("source", "").lower() in EXCLUDED_SOURCES:
                 continue
 
             normalized_asset = dict(asset)

@@ -73,10 +73,10 @@ jobs:
         include:
           - arch: amd64
             platform: linux/amd64
-            base_image: ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede
+            base_image: ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743
           - arch: aarch64
             platform: linux/arm64
-            base_image: ghcr.io/home-assistant/aarch64-base:3.23@sha256:e81d9f268833456f9803da051fa95fd8fa4e1fad1f911dec1a489a18701a76f5
+            base_image: ghcr.io/home-assistant/aarch64-base:3.24@sha256:ad54e0fd964af2f3a829b4d7c3fe504b59a6852d2c5304fde8711a39b1631e9a
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -84,10 +84,10 @@ jobs:
           persist-credentials: false
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@96fe6ef7f33517b61c61be40b68a1882f3264fb8 # v4.2.0
+        uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+        uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - name: Login to GHCR
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
@@ -111,7 +111,7 @@ jobs:
 
       - name: Build and push addon image (${{ matrix.arch }})
         id: build
-        uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: .
           file: addon/labtether/Dockerfile
@@ -172,7 +172,7 @@ jobs:
             --output-dir "./dist/ha-addon-repository"
 
       - name: Upload add-on repository artifact
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: homeassistant-addon-repository-${{ needs.prepare.outputs.version }}
           path: |
@@ -187,7 +187,7 @@ jobs:
 
       - name: Attach add-on repository tarball to GitHub release
         if: startsWith(github.ref, 'refs/tags/v')
-        uses: softprops/action-gh-release@3d0d9888cb7fd7b750713d6e236d1fcb99157228 # v3.0.2
+        uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
         with:
           files: dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
 

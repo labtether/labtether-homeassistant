@@ -8,6 +8,7 @@ readonly ALPINE_IMAGE="alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913a
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
 readonly DATA_VOLUME="labtether-ha-addon-security-data-$$-${RANDOM}"
+readonly ENV_TEST_ORIGIN="https://ltqa-env.invalid:8443"
 OWNER_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
 readonly OWNER_TOKEN
 SETUP_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
@@ -25,12 +26,12 @@ trap cleanup EXIT
 docker_arch="$(docker info --format '{{.Architecture}}')"
 case "${docker_arch}" in
   amd64 | x86_64)
-    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede"
-    mutable_build_from="ghcr.io/home-assistant/amd64-base:3.23"
+    build_from="ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743"
+    mutable_build_from="ghcr.io/home-assistant/amd64-base:3.24"
     ;;
   arm64 | aarch64)
-    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:e81d9f268833456f9803da051fa95fd8fa4e1fad1f911dec1a489a18701a76f5"
-    mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.23"
+    build_from="ghcr.io/home-assistant/aarch64-base:3.24@sha256:ad54e0fd964af2f3a829b4d7c3fe504b59a6852d2c5304fde8711a39b1631e9a"
+    mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.24"
     ;;
   *)
     echo "unsupported Docker architecture: ${docker_arch}" >&2
@@ -92,6 +93,8 @@ JSON
 
 docker run --detach \
   --name "${CONTAINER_NAME}" \
+  --env GOMAXPROCS=2 \
+  --env "LABTETHER_EXTERNAL_URL=${ENV_TEST_ORIGIN}" \
   --volume "${DATA_VOLUME}:/data" \
   "${IMAGE_TAG}" >/dev/null
 
@@ -140,6 +143,19 @@ for _ in $(seq 1 30); do
 done
 if [[ "${https_ready}" != "true" ]]; then
   echo "hub HTTPS health endpoint did not become ready" >&2
+  exit 1
+fi
+
+# Check preserved configuration through the public discovery response.
+# Stay on loopback; never resolve or follow the advertised external URL.
+if ! docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+  bash -se -o pipefail -- "${ENV_TEST_ORIGIN}" <<'SH'
+curl --disable --insecure --silent --show-error --fail --max-time 5 \
+  --noproxy '*' --max-redirs 0 https://127.0.0.1:8443/api/v1/discover \
+  | jq --exit-status --arg expected "$1" '.hub_url == $expected' >/dev/null
+SH
+then
+  echo "hub did not advertise its configured external URL" >&2
   exit 1
 fi
 
