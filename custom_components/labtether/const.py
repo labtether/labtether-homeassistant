@@ -52,10 +52,10 @@ POWER_ACTION_SOURCES = {"proxmox", "truenas", "docker"}
 ACTIVE_ASSET_STATUSES = frozenset({"online", "running", "up", "active", "healthy"})
 
 # Asset source to exclude (prevents circular entity mirroring)
-EXCLUDED_SOURCE = "home-assistant"
+EXCLUDED_SOURCES = frozenset({"home-assistant", "homeassistant"})
 
 # Asset kinds that typically have telemetry
-TELEMETRY_KINDS = {"hypervisor-node", "vm", "container", "container-host"}
+TELEMETRY_KINDS = {"host", "hypervisor-node", "vm", "container", "container-host"}
 
 
 def entry_pref(entry, key: str, default):

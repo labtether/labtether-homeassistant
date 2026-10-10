@@ -101,10 +101,10 @@ def test_active_alerts_sensor():
 
 @pytest.mark.asyncio
 async def test_sensor_setup_adds_new_telemetry_assets_after_initial_load():
-    """Telemetry entities should be added when new telemetry assets appear."""
+    """Agent hosts and later telemetry assets should receive metric entities."""
     coord = _make_coordinator([
-        {"id": "a1", "name": "Node1", "type": "hypervisor-node", "source": "proxmox", "status": "online", "metadata": {}}
-    ])
+        {"id": "a1", "name": "Agent1", "type": "host", "source": "agent", "status": "online", "metadata": {}}
+    ], metrics={"a1": {"cpu_used_percent": 45.5}})
     listeners = []
     coord.async_add_listener = MagicMock(side_effect=lambda cb: listeners.append(cb) or (lambda: None))
 
@@ -124,6 +124,10 @@ async def test_sensor_setup_adds_new_telemetry_assets_after_initial_load():
     await async_setup_entry(hass, entry, _add_entities)
     assert len(added_batches[0]) == 5  # 2 hub sensors + 3 metrics for first asset
     assert added_batches[0][0]._attr_unique_id == "labtether_entry-1_hub_total_assets"
+    assert {entity._metric_key for entity in added_batches[0][2:]} == {
+        "cpu_used_percent", "memory_used_percent", "disk_used_percent"
+    }
+    assert added_batches[0][2].native_value == 45.5
 
     coord.data.assets.append(
         {"id": "a2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}

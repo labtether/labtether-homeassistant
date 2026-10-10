@@ -8,7 +8,7 @@ from labtether.coordinator import LabTetherData
 from labtether.const import (
     CONTROLLABLE_KINDS,
     DOMAIN,
-    EXCLUDED_SOURCE,
+    EXCLUDED_SOURCES,
     POWER_ACTION_SOURCES,
     TELEMETRY_KINDS,
 )
@@ -31,7 +31,7 @@ def test_telemetry_kinds_include_compute():
 
 
 def test_excluded_source_is_homeassistant():
-    assert EXCLUDED_SOURCE == "home-assistant"
+    assert EXCLUDED_SOURCES == {"home-assistant", "homeassistant"}
 
 
 def test_data_model_full_workflow():

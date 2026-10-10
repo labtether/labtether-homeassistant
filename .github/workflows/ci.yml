@@ -37,7 +37,7 @@ jobs:
       contracts: ${{ steps.select.outputs.contracts }}
       mode: ${{ steps.select.outputs.mode }}
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -60,6 +60,7 @@ jobs:
             --head "${GITHUB_SHA}"
 
   test:
+    name: test (${{ matrix.python-label }})
     needs: [line-limit, qa-contracts]
     if: >-
       !cancelled() && (needs.line-limit.result != 'success' ||
@@ -68,7 +69,11 @@ jobs:
     timeout-minutes: 15
     strategy:
       matrix:
-        python-version: ["3.12", "3.14"]
+        include:
+          - python-label: "3.12"
+            python-version: "3.12.15"
+          - python-label: "3.14"
+            python-version: "3.14.8"
     steps:
       - name: Require source-size and selection gates
         shell: bash
@@ -119,14 +124,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v6
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
-          python-version: "3.14"
+          python-version: "3.14.8"
           cache: pip
           cache-dependency-path: requirements-dev.txt
 

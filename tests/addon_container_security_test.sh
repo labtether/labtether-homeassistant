@@ -25,12 +25,12 @@ trap cleanup EXIT
 docker_arch="$(docker info --format '{{.Architecture}}')"
 case "${docker_arch}" in
   amd64 | x86_64)
-    build_from="ghcr.io/home-assistant/amd64-base:3.23@sha256:322c4492f25f9c2ca04b0789101a44350c516f4d3cd928fca14847ef19668ede"
-    mutable_build_from="ghcr.io/home-assistant/amd64-base:3.23"
+    build_from="ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743"
+    mutable_build_from="ghcr.io/home-assistant/amd64-base:3.24"
     ;;
   arm64 | aarch64)
-    build_from="ghcr.io/home-assistant/aarch64-base:3.23@sha256:e81d9f268833456f9803da051fa95fd8fa4e1fad1f911dec1a489a18701a76f5"
-    mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.23"
+    build_from="ghcr.io/home-assistant/aarch64-base:3.24@sha256:ad54e0fd964af2f3a829b4d7c3fe504b59a6852d2c5304fde8711a39b1631e9a"
+    mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.24"
     ;;
   *)
     echo "unsupported Docker architecture: ${docker_arch}" >&2
@@ -92,6 +92,7 @@ JSON
 
 docker run --detach \
   --name "${CONTAINER_NAME}" \
+  --env GOMAXPROCS=2 \
   --volume "${DATA_VOLUME}:/data" \
   "${IMAGE_TAG}" >/dev/null
 
@@ -121,6 +122,15 @@ if [[ -z "${hub_uid}" || "${hub_uid}" == "0" ]]; then
 fi
 if [[ "${hub_uid}" != "10001" ]]; then
   echo "hub process has unexpected uid ${hub_uid}" >&2
+  exit 1
+fi
+
+# s6 must preserve deployment configuration through the image's real CMD.
+# Inspect only this non-secret value; never print the process environment.
+if ! docker exec "${CONTAINER_NAME}" sh -c '
+  tr "\000" "\n" < "/proc/$1/environ" | grep -Fxq "GOMAXPROCS=2"
+' _ "${hub_pid}"; then
+  echo "hub lost its configured container environment during startup" >&2
   exit 1
 fi
 
