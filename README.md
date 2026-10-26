@@ -8,9 +8,11 @@
 
 Custom Home Assistant integration that exposes LabTether-managed infrastructure as HA devices and entities.
 
-Compatibility note: audited against Home Assistant Core `2026.7.2`, including
-the browser config flow, options, reauthentication, reconfiguration, entity
-registry cleanup, outage recovery, restart, and removal behavior.
+Requires Home Assistant `2024.12.0` or newer (the reauthentication,
+reconfiguration and options flows use config-flow helpers added in 2024.11 and
+2024.12). Audited against Home Assistant Core `2026.7.2`, including the browser
+config flow, options, reauthentication, reconfiguration, entity registry
+cleanup, outage recovery, restart, and removal behavior.
 
 ## Features
 

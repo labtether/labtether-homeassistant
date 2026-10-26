@@ -269,6 +269,20 @@ def test_review_copy_uses_markdown_list_in_all_english_catalogs():
         assert "\n- **Polling interval:**" in description
 
 
+def test_every_config_flow_abort_reason_has_user_text():
+    """HA shows a raw key when an abort reason has no catalog entry."""
+    import re
+
+    component = Path(__file__).parent.parent / "custom_components" / "labtether"
+    source = (component / "config_flow.py").read_text()
+    reasons = set(re.findall(r'reason="([a-z_]+)"', source))
+    assert "unknown" in reasons
+    catalogs = [component / "strings.json", *sorted((component / "translations").glob("*.json"))]
+    for path in catalogs:
+        aborts = json.loads(path.read_text())["config"]["abort"]
+        assert reasons <= set(aborts), (path.name, sorted(reasons - set(aborts)))
+
+
 def test_options_flow_imports():
     """Options flow should be available for the integration."""
     from labtether.config_flow import LabTetherOptionsFlow

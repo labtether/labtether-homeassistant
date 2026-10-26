@@ -63,7 +63,8 @@
     "abort": {
       "already_configured": "This LabTether hub is already configured.",
       "reauth_successful": "The LabTether connection was reauthenticated successfully.",
-      "reconfigure_successful": "The LabTether connection was updated successfully."
+      "reconfigure_successful": "The LabTether connection was updated successfully.",
+      "unknown": "An unexpected error occurred. Check the Home Assistant log for details."
     }
   },
   "options": {
