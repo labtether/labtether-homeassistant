@@ -4,6 +4,7 @@ version: 2
 # wait seven days so newly published releases have time to settle upstream.
 updates:
   - package-ecosystem: pip
+    open-pull-requests-limit: 0
     directory: "/"
     schedule:
       interval: weekly
@@ -11,6 +12,7 @@ updates:
       default-days: 7
 
   - package-ecosystem: docker
+    open-pull-requests-limit: 0
     directory: "/addon/labtether"
     schedule:
       interval: weekly
@@ -18,6 +20,7 @@ updates:
       default-days: 7
 
   - package-ecosystem: github-actions
+    open-pull-requests-limit: 0
     directory: "/"
     schedule:
       interval: weekly
