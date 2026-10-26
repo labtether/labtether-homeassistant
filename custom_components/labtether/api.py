@@ -31,6 +31,8 @@ _LOGGER = logging.getLogger(__name__)
 MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 API_RESPONSE_CHUNK_BYTES = 64 * 1024
 API_REQUEST_TIMEOUT_SECONDS = 30
+ALERT_PAGE_SIZE = 500
+MAX_ALERT_INSTANCES = 10000
 
 
 def _validated_asset_id(value: Any, *, field: str = "id") -> str:
@@ -311,16 +313,34 @@ class LabTetherApiClient:
         return result
 
     async def async_get_firing_alerts_count(self) -> int:
-        """Get the count of currently firing alerts."""
-        data = await self._get(API_ALERTS_INSTANCES, params={"status": "firing"})
-        instances = data.get("instances", [])
-        if not isinstance(instances, list):
-            raise LabTetherApiError("API returned an invalid alerts collection")
-        return sum(
-            1
-            for instance in instances
-            if isinstance(instance, dict) and instance.get("status") == "firing"
-        )
+        """Count every page, or fail instead of publishing a partial count."""
+        seen_ids: set[str] = set()
+        firing_ids: set[str] = set()
+        for offset in range(0, MAX_ALERT_INSTANCES + 1, ALERT_PAGE_SIZE):
+            data = await self._get(
+                API_ALERTS_INSTANCES,
+                params={"status": "firing", "limit": ALERT_PAGE_SIZE, "offset": offset},
+            )
+            instances = data.get("instances")
+            if not isinstance(instances, list) or len(instances) > ALERT_PAGE_SIZE:
+                raise LabTetherApiError("API returned an invalid alerts collection")
+            previous_count = len(seen_ids)
+            for instance in instances:
+                if not isinstance(instance, dict):
+                    raise LabTetherApiError("API returned an invalid alert record")
+                alert_id = instance.get("id")
+                if not isinstance(alert_id, str) or not alert_id:
+                    raise LabTetherApiError("API returned an invalid alert ID")
+                seen_ids.add(alert_id)
+                if instance.get("status") == "firing":
+                    firing_ids.add(alert_id)
+            if len(seen_ids) > MAX_ALERT_INSTANCES:
+                break
+            if len(instances) < ALERT_PAGE_SIZE:
+                return len(firing_ids)
+            if len(seen_ids) == previous_count:
+                raise LabTetherApiError("API alert pagination made no progress")
+        raise LabTetherApiError("API alert pagination exceeded its safety limit")
 
     async def async_run_action(
         self,
@@ -331,7 +351,7 @@ class LabTetherApiClient:
         params: dict | None = None,
     ) -> dict:
         """Run an action on a LabTether asset."""
-        body: dict[str, Any] = {"type": action_type, "asset_id": asset_id}
+        body: dict[str, Any] = {"type": action_type, "target": asset_id}
         if connector_id:
             body["connector_id"] = connector_id
         if action_id:

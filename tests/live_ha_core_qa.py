@@ -308,7 +308,7 @@ class LiveHAQA(LiveHAClient):
             ("ltqa-docker-container", "docker", "container.start"),
         }
         observed = {
-            (action.get("asset_id"), action.get("connector_id"), action.get("action_id"))
+            (action.get("target"), action.get("connector_id"), action.get("action_id"))
             for action in actions
         }
         if not expected.issubset(observed):

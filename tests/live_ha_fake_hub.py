@@ -146,12 +146,12 @@ class Handler(BaseHTTPRequestHandler):
         except (json.JSONDecodeError, UnicodeDecodeError):
             self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid json"})
             return
-        if not isinstance(payload, dict):
+        if not isinstance(payload, dict) or not payload.get("target") or "asset_id" in payload:
             self._json(HTTPStatus.BAD_REQUEST, {"error": "invalid action"})
             return
         with ACTIONS_LOCK:
             ACTIONS.append(payload)
-        self._json(HTTPStatus.OK, {"status": "accepted", "action": payload})
+        self._json(HTTPStatus.ACCEPTED, {"status": "queued", "action": payload})
 
 
 def main() -> None:

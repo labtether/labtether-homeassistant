@@ -120,6 +120,9 @@ Run an approved start/stop action from an administrator-owned automation. This
 service is disabled by default and intentionally does not expose arbitrary
 connector actions or parameters.
 
+Use `vm.start` / `vm.stop` for VMs, `ct.start` / `ct.stop` for Proxmox
+containers, and `container.start` / `container.stop` for Docker containers.
+
 ```yaml
 service: labtether.run_action
 data:

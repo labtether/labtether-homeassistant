@@ -78,6 +78,27 @@ async def test_turn_off_calls_stop_action():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("verb", ["start", "stop"])
+async def test_proxmox_container_uses_lxc_power_action(verb):
+    """LXC power must reach the Hub's CT route, never its QEMU VM route."""
+    coord = _make_coordinator([
+        {"id": "ct-1", "type": "container", "source": "proxmox", "status": "offline"}
+    ])
+    switch = LabTetherPowerSwitch(coord, "ct-1")
+
+    if verb == "start":
+        await switch.async_turn_on()
+    else:
+        await switch.async_turn_off()
+
+    coord.api.async_run_action.assert_awaited_once_with(
+        asset_id="ct-1", action_type="connector_action", connector_id="proxmox",
+        action_id=f"ct.{verb}",
+    )
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_stale_power_switch_fails_instead_of_reporting_success():
     """A removed asset must not make a switch mutation look successful."""
     coord = _make_coordinator([])
