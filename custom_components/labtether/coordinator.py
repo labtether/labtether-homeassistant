@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from .const import (
@@ -19,20 +22,36 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(frozen=True)
 class LabTetherData:
-    """Data class holding all LabTether state."""
+    """One poll result with fixed asset membership and indexed asset IDs.
 
-    assets: list[dict[str, Any]] = field(default_factory=list)
+    Copy each asset's fields so caller edits cannot invalidate the index. Nested
+    metadata and metrics are read-only by convention, and need no deep copy.
+    Publish a new result when assets change, as the coordinator does each poll.
+    """
+
+    assets: Sequence[Mapping[str, Any]] = field(default_factory=tuple)
     metrics: dict[str, dict[str, Any]] = field(default_factory=dict)
     firing_alerts_count: int = 0
+    _assets_by_id: dict[str, Mapping[str, Any]] = field(
+        init=False, repr=False, compare=False
+    )
 
-    def get_asset(self, asset_id: str) -> dict[str, Any] | None:
+    def __post_init__(self) -> None:
+        """Own the asset collection and keep the first match for each ID."""
+        assets = tuple(MappingProxyType(dict(asset)) for asset in self.assets)
+        index: dict[str, Mapping[str, Any]] = {}
+        for asset in assets:
+            asset_id = asset.get("id")
+            if isinstance(asset_id, str):
+                index.setdefault(asset_id, asset)
+        object.__setattr__(self, "assets", assets)
+        object.__setattr__(self, "_assets_by_id", index)
+
+    def get_asset(self, asset_id: str) -> Mapping[str, Any] | None:
         """Get an asset by ID."""
-        for asset in self.assets:
-            if asset.get("id") == asset_id:
-                return asset
-        return None
+        return self._assets_by_id.get(asset_id)
 
     def get_metrics(self, asset_id: str) -> dict[str, Any]:
         """Get metrics for an asset, or empty dict if none."""
@@ -67,10 +86,21 @@ def _build_coordinator_class() -> type:
 
         async def _async_update_data(self) -> LabTetherData:
             """Fetch data from LabTether API."""
+            requests = (
+                asyncio.create_task(self.api.async_get_assets()),
+                asyncio.create_task(self.api.async_get_metrics_overview()),
+                asyncio.create_task(self.api.async_get_firing_alerts_count()),
+            )
             try:
-                assets = await self.api.async_get_assets()
-                metrics = await self.api.async_get_metrics_overview()
-                alerts_count = await self.api.async_get_firing_alerts_count()
+                try:
+                    assets, metrics, alerts_count = await asyncio.gather(*requests)
+                except BaseException:
+                    # gather propagates failures without stopping sibling requests.
+                    # Finish their cleanup before a failed/cancelled poll returns.
+                    for request in requests:
+                        request.cancel()
+                    await asyncio.gather(*requests, return_exceptions=True)
+                    raise
             except LabTetherApiError as err:
                 if "Authentication failed" in str(err):
                     raise ConfigEntryAuthFailed from err

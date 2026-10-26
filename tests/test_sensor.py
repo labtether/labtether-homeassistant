@@ -1,6 +1,7 @@
 """Tests for LabTether sensor entities."""
 
 import pytest
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import sys
@@ -129,18 +130,18 @@ async def test_sensor_setup_adds_new_telemetry_assets_after_initial_load():
     }
     assert added_batches[0][2].native_value == 45.5
 
-    coord.data.assets.append(
-        {"id": "a2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}
-    )
+    new_asset = {"id": "a2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}
+    assets = [*coord.data.assets, new_asset]
+    coord.data = replace(coord.data, assets=assets)
     listeners[0]()
 
     assert len(added_batches[1]) == 3
     assert {entity._asset_id for entity in added_batches[1]} == {"a2"}
 
-    coord.data.assets[-1]["type"] = "network-device"
-    listeners[0]()
-    coord.data.assets[-1]["type"] = "vm"
-    listeners[0]()
+    for asset_type in ("network-device", "vm"):
+        new_asset["type"] = asset_type
+        coord.data = replace(coord.data, assets=assets)
+        listeners[0]()
 
     assert len(added_batches) == 3
     assert {entity._asset_id for entity in added_batches[2]} == {"a2"}

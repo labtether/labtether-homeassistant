@@ -1,6 +1,7 @@
 """Tests for LabTether switch entities."""
 
 import pytest
+from dataclasses import replace
 from unittest.mock import MagicMock, AsyncMock
 
 import sys
@@ -114,19 +115,19 @@ async def test_switch_setup_skips_unsupported_sources_and_adds_new_supported_ass
     await async_setup_entry(hass, entry, _add_entities)
     assert added_batches[0] == []
 
-    coord.data.assets.append(
-        {"id": "vm-2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "offline", "metadata": {}}
-    )
+    new_asset = {"id": "vm-2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "offline", "metadata": {}}
+    assets = [*coord.data.assets, new_asset]
+    coord.data = replace(coord.data, assets=assets)
     listeners[0]()
 
     assert len(added_batches[1]) == 1
     assert added_batches[1][0]._asset_id == "vm-2"
     assert added_batches[1][0]._attr_unique_id == "labtether_entry-1_vm-2_power"
 
-    coord.data.assets[-1]["source"] = "unknown"
-    listeners[0]()
-    coord.data.assets[-1]["source"] = "proxmox"
-    listeners[0]()
+    for source in ("unknown", "proxmox"):
+        new_asset["source"] = source
+        coord.data = replace(coord.data, assets=assets)
+        listeners[0]()
 
     assert len(added_batches) == 3
     assert added_batches[2][0]._asset_id == "vm-2"

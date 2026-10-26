@@ -1,6 +1,7 @@
 """Tests for LabTether binary sensor entities."""
 
 import pytest
+from dataclasses import replace
 from unittest.mock import MagicMock
 
 import sys
@@ -93,19 +94,19 @@ async def test_binary_sensor_setup_adds_new_assets_after_initial_load():
     assert len(added_batches[0]) == 2  # hub + first asset
     assert added_batches[0][0]._attr_unique_id == "labtether_entry-1_hub_status"
 
-    coord.data.assets.append(
-        {"id": "a2", "name": "Node2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}
-    )
+    new_asset = {"id": "a2", "name": "Node2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}
+    assets = [*coord.data.assets, new_asset]
+    coord.data = replace(coord.data, assets=assets)
     listeners[0]()
 
     assert len(added_batches[1]) == 1
     assert added_batches[1][0]._asset_id == "a2"
 
-    coord.data.assets = [asset for asset in coord.data.assets if asset["id"] != "a2"]
-    listeners[0]()
-    coord.data.assets.append(
-        {"id": "a2", "name": "Node2", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}
+    coord.data = replace(
+        coord.data, assets=[asset for asset in assets if asset["id"] != "a2"]
     )
+    listeners[0]()
+    coord.data = replace(coord.data, assets=assets)
     listeners[0]()
 
     assert len(added_batches) == 3

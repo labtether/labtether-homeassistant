@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+from typing import Any
+
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -19,7 +22,7 @@ class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
         self._asset_id = asset_id
 
     @property
-    def _asset(self) -> dict | None:
+    def _asset(self) -> Mapping[str, Any] | None:
         """Get the current asset data."""
         return self.coordinator.data.get_asset(self._asset_id)
 
