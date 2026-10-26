@@ -37,7 +37,7 @@ def test_excluded_source_is_homeassistant():
 def test_data_model_full_workflow():
     """Simulate a full data cycle."""
     assets = [
-        {"id": "pve-node-1", "name": "DeltaServer", "type": "hypervisor-node", "source": "proxmox", "status": "online", "metadata": {}},
+        {"id": "pve-node-1", "name": "NorthServer", "type": "hypervisor-node", "source": "proxmox", "status": "online", "metadata": {}},
         {"id": "pve-vm-100", "name": "TestVM", "type": "vm", "source": "proxmox", "status": "running", "metadata": {"vmid": "100"}},
         {"id": "truenas-pool-1", "name": "MainPool", "type": "storage-pool", "source": "truenas", "status": "online", "metadata": {}},
     ]
@@ -48,7 +48,7 @@ def test_data_model_full_workflow():
     data = LabTetherData(assets=assets, metrics=metrics, firing_alerts_count=2)
 
     # Verify asset lookup
-    assert data.get_asset("pve-node-1")["name"] == "DeltaServer"
+    assert data.get_asset("pve-node-1")["name"] == "NorthServer"
     assert data.get_asset("missing") is None
 
     # Verify metrics lookup
