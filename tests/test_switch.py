@@ -1,6 +1,7 @@
 """Tests for LabTether switch entities."""
 
 import pytest
+from dataclasses import replace
 from unittest.mock import MagicMock, AsyncMock
 
 import sys
@@ -77,6 +78,27 @@ async def test_turn_off_calls_stop_action():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("verb", ["start", "stop"])
+async def test_proxmox_container_uses_lxc_power_action(verb):
+    """LXC power must reach the Hub's CT route, never its QEMU VM route."""
+    coord = _make_coordinator([
+        {"id": "ct-1", "type": "container", "source": "proxmox", "status": "offline"}
+    ])
+    switch = LabTetherPowerSwitch(coord, "ct-1")
+
+    if verb == "start":
+        await switch.async_turn_on()
+    else:
+        await switch.async_turn_off()
+
+    coord.api.async_run_action.assert_awaited_once_with(
+        asset_id="ct-1", action_type="connector_action", connector_id="proxmox",
+        action_id=f"ct.{verb}",
+    )
+    coord.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_stale_power_switch_fails_instead_of_reporting_success():
     """A removed asset must not make a switch mutation look successful."""
     coord = _make_coordinator([])
@@ -114,19 +136,19 @@ async def test_switch_setup_skips_unsupported_sources_and_adds_new_supported_ass
     await async_setup_entry(hass, entry, _add_entities)
     assert added_batches[0] == []
 
-    coord.data.assets.append(
-        {"id": "vm-2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "offline", "metadata": {}}
-    )
+    new_asset = {"id": "vm-2", "name": "VM2", "type": "vm", "source": "proxmox", "status": "offline", "metadata": {}}
+    assets = [*coord.data.assets, new_asset]
+    coord.data = replace(coord.data, assets=assets)
     listeners[0]()
 
     assert len(added_batches[1]) == 1
     assert added_batches[1][0]._asset_id == "vm-2"
     assert added_batches[1][0]._attr_unique_id == "labtether_entry-1_vm-2_power"
 
-    coord.data.assets[-1]["source"] = "unknown"
-    listeners[0]()
-    coord.data.assets[-1]["source"] = "proxmox"
-    listeners[0]()
+    for source in ("unknown", "proxmox"):
+        new_asset["source"] = source
+        coord.data = replace(coord.data, assets=assets)
+        listeners[0]()
 
     assert len(added_batches) == 3
     assert added_batches[2][0]._asset_id == "vm-2"

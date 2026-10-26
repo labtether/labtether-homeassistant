@@ -2,6 +2,7 @@
 
 import pytest
 import sys
+from dataclasses import FrozenInstanceError
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
@@ -34,6 +35,38 @@ def test_labtether_data_get_asset():
     )
     assert data.get_asset("a1")["name"] == "A1"
     assert data.get_asset("missing") is None
+
+
+def test_asset_index_preserves_first_match_and_snapshot_ownership():
+    """Neither caller edits nor edits through a result can stale indexed IDs."""
+    first_asset = {"id": "a1", "name": "First"}
+    assets = [first_asset, {"id": "a1", "name": "Second"}]
+    data = LabTetherData(assets=assets)
+
+    first_asset["id"] = "changed"
+    assets.clear()
+    assert len(data.assets) == 2
+    assert data.get_asset("a1")["name"] == "First"
+    assert data.get_asset("a1") is data.assets[0]
+    assert data.get_asset("changed") is None
+    with pytest.raises(TypeError):
+        data.get_asset("a1")["id"] = "changed"
+    with pytest.raises(FrozenInstanceError):
+        data.assets = ()
+
+
+def test_new_snapshot_refreshes_ids_and_values_without_changing_previous_result():
+    """Equal-sized inventory changes must not reuse a stale lookup index."""
+    assets = [{"id": "a1", "name": "Old"}]
+    previous = LabTetherData(assets=assets)
+    assets[0] = {"id": "a2", "name": "New"}
+    current = LabTetherData(assets=assets)
+
+    assert previous.get_asset("a1")["name"] == "Old"
+    assert previous.get_asset("a2") is None
+    assert current.get_asset("a1") is None
+    assert current.get_asset("a2")["name"] == "New"
+    assert current == LabTetherData(assets=assets)
 
 
 def test_labtether_data_get_metrics():

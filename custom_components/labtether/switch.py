@@ -131,4 +131,6 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
             raise HomeAssistantError(
                 f"LabTether asset {self._asset_id!r} no longer has a supported power source"
             )
+        if source == "proxmox" and asset.get("type") == "container":
+            return {"start": "ct.start", "stop": "ct.stop", "connector_id": source}
         return actions

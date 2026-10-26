@@ -91,10 +91,11 @@ def test_run_action_service_is_disabled_by_default():
 
 
 @pytest.mark.asyncio
-async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(monkeypatch):
+@pytest.mark.parametrize("asset_type,action", [("vm", "vm.start"), ("container", "ct.start"), ("container", "ct.stop")])
+async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(monkeypatch, asset_type, action):
     coordinator = MagicMock()
     coordinator.data = LabTetherData(
-        assets=[{"id": "vm-1", "name": "VM", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}],
+        assets=[{"id": "vm-1", "name": "VM", "type": asset_type, "source": "proxmox", "status": "online", "metadata": {}}],
         metrics={},
         firing_alerts_count=0,
     )
@@ -121,7 +122,7 @@ async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(mon
     allowed_call = MagicMock()
     allowed_call.data = {
         "asset_id": "vm-1",
-        "action": "vm.start",
+        "action": action,
         "connector_id": "proxmox",
     }
     await handler(allowed_call)
@@ -129,7 +130,7 @@ async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(mon
         asset_id="vm-1",
         action_type="connector_action",
         connector_id="proxmox",
-        action_id="vm.start",
+        action_id=action,
         params=None,
     )
 

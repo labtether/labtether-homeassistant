@@ -32,7 +32,7 @@ DEFAULT_ALLOW_INSECURE_HTTP = False
 # carry destructive parameters and must be initiated through the LabTether UI,
 # where the hub can present action-specific authorization and confirmation.
 RUN_ACTION_ALLOWLIST = {
-    "proxmox": frozenset({"vm.start", "vm.stop"}),
+    "proxmox": frozenset({"vm.start", "vm.stop", "ct.start", "ct.stop"}),
     "truenas": frozenset({"vm.start", "vm.stop"}),
     "docker": frozenset({"container.start", "container.stop"}),
 }

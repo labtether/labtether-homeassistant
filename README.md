@@ -8,9 +8,11 @@
 
 Custom Home Assistant integration that exposes LabTether-managed infrastructure as HA devices and entities.
 
-Compatibility note: audited against Home Assistant Core `2026.7.2`, including
-the browser config flow, options, reauthentication, reconfiguration, entity
-registry cleanup, outage recovery, restart, and removal behavior.
+Requires Home Assistant `2024.12.0` or newer (the reauthentication,
+reconfiguration and options flows use config-flow helpers added in 2024.11 and
+2024.12). Audited against Home Assistant Core `2026.7.2`, including the browser
+config flow, options, reauthentication, reconfiguration, entity registry
+cleanup, outage recovery, restart, and removal behavior.
 
 ## Features
 
@@ -35,7 +37,12 @@ separately if you want LabTether entities in Home Assistant.
 
 ### HACS (recommended)
 
-Add this repository as a [custom repository](https://hacs.xyz/docs/faq/custom_repositories/) in HACS with category "Integration".
+1. In HACS, open the menu and choose **Custom repositories**.
+2. Add `https://github.com/labtether/labtether-homeassistant` with type
+   **Integration** (see the HACS
+   [custom repository guide](https://hacs.xyz/docs/faq/custom_repositories/)).
+3. Download **LabTether**, restart Home Assistant, then add the integration
+   as described under [Configuration](#configuration).
 
 ### Development (symlink)
 
@@ -120,6 +127,9 @@ Run an approved start/stop action from an administrator-owned automation. This
 service is disabled by default and intentionally does not expose arbitrary
 connector actions or parameters.
 
+Use `vm.start` / `vm.stop` for VMs, `ct.start` / `ct.stop` for Proxmox
+containers, and `container.start` / `container.stop` for Docker containers.
+
 ```yaml
 service: labtether.run_action
 data:
@@ -167,3 +177,19 @@ LABTETHER_QA_HUB_CA_FILE=</path/to/candidate-hub-ca.pem> \
 Omit `LABTETHER_QA_HUB_CA_FILE` only when the candidate Hub certificate is
 already trusted by the system. The verifier never disables candidate Hub
 certificate or hostname checks.
+
+## Releasing
+
+Tag a release only after the matching Hub release is published: the add-on
+release workflow builds from `ghcr.io/labtether/labtether:<tag>`. The tag must
+look like `v1.7.0` and match the `version` in
+`custom_components/labtether/manifest.json` and `addon/labtether/config.json`;
+the workflow stops before building anything otherwise.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).

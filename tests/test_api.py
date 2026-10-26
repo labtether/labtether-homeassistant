@@ -10,6 +10,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
 from labtether.api import (
+    ALERT_PAGE_SIZE,
+    MAX_ALERT_INSTANCES,
     MAX_API_RESPONSE_BYTES,
     LabTetherApiClient,
     LabTetherApiError,
@@ -178,6 +180,57 @@ async def test_get_firing_alerts_count(api_client):
 
 
 @pytest.mark.asyncio
+async def test_firing_alert_count_reads_all_pages(api_client):
+    """The Hub defaults to 50 alerts; larger incidents must not be undercounted."""
+    page = [{"id": f"alert-{i}", "status": "firing"} for i in range(ALERT_PAGE_SIZE)]
+    api_client._session.request = MagicMock(side_effect=[
+        _mock_response({"instances": page}),
+        _mock_response({"instances": [{"id": "last-alert", "status": "firing"}]}),
+    ])
+
+    assert await api_client.async_get_firing_alerts_count() == ALERT_PAGE_SIZE + 1
+    assert [call.kwargs["params"] for call in api_client._session.request.call_args_list] == [
+        {"status": "firing", "limit": ALERT_PAGE_SIZE, "offset": 0},
+        {"status": "firing", "limit": ALERT_PAGE_SIZE, "offset": ALERT_PAGE_SIZE},
+    ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("second_page", ["failure", "repeated"])
+async def test_firing_alert_count_never_returns_a_partial_result(api_client, second_page):
+    """Failed or stuck pagination must not turn an incomplete count into HA state."""
+    page = [{"id": f"alert-{i}", "status": "firing"} for i in range(ALERT_PAGE_SIZE)]
+    api_client._session.request = MagicMock(side_effect=[
+        _mock_response({"instances": page}),
+        _mock_response({"instances": page}) if second_page == "repeated"
+        else _mock_response({"error": "unavailable"}, status=503),
+    ])
+
+    with pytest.raises(LabTetherApiError):
+        await api_client.async_get_firing_alerts_count()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("extra_alerts", [0, 1])
+async def test_firing_alert_count_at_safety_limit_is_complete_or_fails(api_client, extra_alerts):
+    """A full final page needs an empty next page; overflow is never truncated."""
+    instances = [
+        {"id": f"alert-{index}", "status": "firing"}
+        for index in range(MAX_ALERT_INSTANCES + extra_alerts)
+    ]
+    api_client._session.request = MagicMock(side_effect=[
+        _mock_response({"instances": instances[offset:offset + ALERT_PAGE_SIZE]})
+        for offset in range(0, len(instances) + 1, ALERT_PAGE_SIZE)
+    ])
+
+    if extra_alerts:
+        with pytest.raises(LabTetherApiError, match="safety limit"):
+            await api_client.async_get_firing_alerts_count()
+    else:
+        assert await api_client.async_get_firing_alerts_count() == MAX_ALERT_INSTANCES
+
+
+@pytest.mark.asyncio
 async def test_validate_connection_success(api_client):
     """Validate connection should require canonical identity and assets."""
     api_client._session.request = MagicMock(side_effect=[
@@ -240,6 +293,12 @@ async def test_run_action(api_client):
 
     result = await api_client.async_run_action("pve-vm-100", "connector_action", connector_id="proxmox", action_id="vm.start")
     assert result["job_id"] == "job-1"
+    assert api_client._session.request.call_args.kwargs["json"] == {
+        "type": "connector_action",
+        "target": "pve-vm-100",
+        "connector_id": "proxmox",
+        "action_id": "vm.start",
+    }
 
 
 @pytest.mark.asyncio

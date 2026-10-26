@@ -244,6 +244,19 @@ def _reconcile_registry_entries(
             device_registry.async_remove_device(device_entry.id)
 
 
+def _registry_inventory(entry: ConfigEntry, coordinator: LabTetherCoordinator) -> tuple:
+    """Only membership, entity kinds and import settings affect stale records."""
+    return (
+        frozenset(
+            (asset["id"], asset.get("type"), asset.get("source", ""))
+            for asset in coordinator.data.assets
+        ),
+        bool(entry_pref(entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS)),
+        bool(entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS)),
+        bool(entry_pref(entry, CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES)),
+    )
+
+
 def _register_run_action_service(hass: HomeAssistant) -> None:
     if hass.services.has_service(DOMAIN, SERVICE_RUN_ACTION):
         return
@@ -333,6 +346,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
     _reconcile_registry_entries(hass, entry, coordinator)
+    registry_inventory = _registry_inventory(entry, coordinator)
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
@@ -346,7 +360,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     @callback
     def _async_reconcile_after_refresh() -> None:
+        nonlocal registry_inventory
+        if not coordinator.last_update_success:
+            return
+        current_inventory = _registry_inventory(entry, coordinator)
+        if current_inventory == registry_inventory:
+            return
         _reconcile_registry_entries(hass, entry, coordinator)
+        registry_inventory = current_inventory
 
     entry.async_on_unload(coordinator.async_add_listener(_async_reconcile_after_refresh))
     _sync_run_action_service(hass)

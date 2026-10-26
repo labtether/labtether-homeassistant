@@ -10,7 +10,7 @@ run_action:
         text:
     action:
       name: Action
-      description: "An approved power action (vm.start, vm.stop, container.start, or container.stop)."
+      description: "An approved start/stop action: vm.start/vm.stop for VMs, ct.start/ct.stop for Proxmox containers, or container.start/container.stop for Docker."
       required: true
       selector:
         text:
