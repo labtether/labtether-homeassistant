@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant@sha256:3a491dcf68a0d17ec439a464f7a076386af11d8aec3e15d1c1c46625783f0340"
+readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4"
 readonly HA_CONTAINER="ltqa-ha-cross-core"
 readonly HELPER_CONTAINER="ltqa-ha-cross-helper"
 readonly CONFIG_VOLUME="ltqa-ha-cross-config"

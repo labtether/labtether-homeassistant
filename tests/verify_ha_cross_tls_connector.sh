@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant@sha256:3a491dcf68a0d17ec439a464f7a076386af11d8aec3e15d1c1c46625783f0340"
+readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0659d786213264c2211f8d91c5fe87461c56eba6a3a546eb05fc71e89f4"
 readonly HA_TLS_URL="${LABTETHER_CROSS_HA_TLS_URL:-https://host.docker.internal:18444}"
 readonly HA_TOKEN_FILE="/tmp/labtether-ha-cross-qa-token"
 readonly HA_TLS_VOLUME="ltqa-ha-cross-tls-data"

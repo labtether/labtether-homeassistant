@@ -4,7 +4,7 @@ set -Eeuo pipefail
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
 readonly HUB_IMAGE="ghcr.io/labtether/labtether@sha256:7e317791be6c8df484050316bb77ffad9a454d0d813a9299feb7c08a9911f54f"
-readonly ALPINE_IMAGE="alpine:3.19@sha256:6baf43584bcb78f2e5847d1de515f23499913ac9f12bdf834811a3145eb11ca1"
+readonly ALPINE_IMAGE="alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a"
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
 readonly DATA_VOLUME="labtether-ha-addon-security-data-$$-${RANDOM}"
@@ -26,11 +26,11 @@ trap cleanup EXIT
 docker_arch="$(docker info --format '{{.Architecture}}')"
 case "${docker_arch}" in
   amd64 | x86_64)
-    build_from="ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743"
+    build_from="ghcr.io/home-assistant/amd64-base:3.24@sha256:20d9028d56eaa3dd3013f6e0a7957b4911e4c71e14f85d1f609bba4fe429e84a"
     mutable_build_from="ghcr.io/home-assistant/amd64-base:3.24"
     ;;
   arm64 | aarch64)
-    build_from="ghcr.io/home-assistant/aarch64-base:3.24@sha256:ad54e0fd964af2f3a829b4d7c3fe504b59a6852d2c5304fde8711a39b1631e9a"
+    build_from="ghcr.io/home-assistant/aarch64-base:3.24@sha256:aacbf5d8c17fe5682b0d0bc5a523cd14cbd5481bd9124eb312d8aa2e9d796840"
     mutable_build_from="ghcr.io/home-assistant/aarch64-base:3.24"
     ;;
   *)

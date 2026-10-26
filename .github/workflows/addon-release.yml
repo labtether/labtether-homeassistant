@@ -99,10 +99,10 @@ jobs:
         include:
           - arch: amd64
             platform: linux/amd64
-            base_image: ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743
+            base_image: ghcr.io/home-assistant/amd64-base:3.24@sha256:20d9028d56eaa3dd3013f6e0a7957b4911e4c71e14f85d1f609bba4fe429e84a
           - arch: aarch64
             platform: linux/arm64
-            base_image: ghcr.io/home-assistant/aarch64-base:3.24@sha256:ad54e0fd964af2f3a829b4d7c3fe504b59a6852d2c5304fde8711a39b1631e9a
+            base_image: ghcr.io/home-assistant/aarch64-base:3.24@sha256:aacbf5d8c17fe5682b0d0bc5a523cd14cbd5481bd9124eb312d8aa2e9d796840
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

@@ -426,7 +426,16 @@ class LiveHAQA(LiveHAClient):
 
         async def unloaded() -> bool:
             entries = await self.entries()
-            snapshot = await self.surface_snapshot()
+            # HA Core up to at least 2026.10.4 can leave its own restored
+            # "unavailable" registry placeholders after a config entry is
+            # disabled (fixed upstream by home-assistant/core#186056). They are
+            # not live LabTether entities, so only live states fail the unload.
+            snapshot = {
+                name: (state.get("state"), state.get("attributes", {}).get("restored"))
+                for name, state in (await self.surface_snapshot()).items()
+                if state.get("state") != "unavailable"
+                or state.get("attributes", {}).get("restored") is not True
+            }
             entry = next(
                 (item for item in entries if item.get("entry_id") == self.entry_id),
                 None,
@@ -441,7 +450,7 @@ class LiveHAQA(LiveHAClient):
                 return True
             raise AssertionError(
                 "entry did not fully unload: "
-                f"entry={entry!r}, surfaces={sorted(snapshot)}, "
+                f"entry={entry!r}, live surfaces={sorted(snapshot.items())}, "
                 f"service_absent={service_absent}"
             )
 
