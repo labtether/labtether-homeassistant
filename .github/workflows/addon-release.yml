@@ -21,12 +21,38 @@ permissions:
 jobs:
   prepare:
     runs-on: ubuntu-latest
-    permissions: {}
+    timeout-minutes: 5
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.meta.outputs.version }}
       owner_lc: ${{ steps.meta.outputs.owner_lc }}
       publish_repo_branch: ${{ steps.meta.outputs.publish_repo_branch }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      # The tag also selects ghcr.io/labtether/labtether:<tag>, so an HA tag
+      # must be a plain release version that matches the shipped metadata.
+      - name: Require release tag to match integration and add-on versions
+        if: github.ref_type == 'tag'
+        run: |
+          set -euo pipefail
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag ${GITHUB_REF_NAME} must look like v1.2.3" >&2
+            exit 1
+          fi
+          expected="${GITHUB_REF_NAME#v}"
+          for file in custom_components/labtether/manifest.json addon/labtether/config.json; do
+            actual="$(jq -r '.version' "${file}")"
+            if [[ "${actual}" != "${expected}" ]]; then
+              echo "${file} version ${actual} does not match tag ${GITHUB_REF_NAME}" >&2
+              exit 1
+            fi
+          done
+
       - name: Resolve release metadata
         id: meta
         env:
