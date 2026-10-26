@@ -8,8 +8,8 @@ completed an installed-container lifecycle using its real hub binary and local
 Postgres. All automated, live, packaging, and static gates listed below pass.
 
 This does **not** claim a production Home Assistant install: the read-only
-inspection of the Simba household found no LabTether config entry, HACS
-integration, entities, add-on, or LabTether log entries. Simba itself reported a
+inspection of the Alpha household found no LabTether config entry, HACS
+integration, entities, add-on, or LabTether log entries. Alpha itself reported a
 valid configuration, no active repairs, and healthy/supported status. It was not
 mutated during this QA.
 
@@ -78,7 +78,7 @@ Postgres. It proved:
 - a consumed one-time setup token is not recreated; and
 - a full container restart preserves and restarts local Postgres.
 
-Supervisor store installation was not performed on Simba because LabTether is
+Supervisor store installation was not performed on Alpha because LabTether is
 not installed there and this QA maintained a no-production-mutation boundary.
 
 ## Reproducible evidence
@@ -111,7 +111,7 @@ removed.
 ## Disposable cross-product target
 
 The final hub-connector pass can target the fully onboarded, isolated Home
-Assistant instance without touching Simba:
+Assistant instance without touching Alpha:
 
 - host URL: `http://127.0.0.1:18123`
 - URL from a Docker container: `http://host.docker.internal:18123`
@@ -156,7 +156,7 @@ Assistant has no connector CA field at this revision, so `skip_verify` is used
 only for this isolated, self-signed QA endpoint.
 
 This was run against installed hub candidate `labtetherqar14-labtether-1` at
-`https://192.168.0.118:28443`:
+`https://192.168.8.118:28443`:
 
 ```text
 Home Assistant connector TLS proof passed (untrusted=502, skip_verify=200)
@@ -202,7 +202,7 @@ HTTP 4xx/5xx. No drain timeout, lease, closed-pool, fatal, panic, OOM, or
 automatic-restart signal appeared. Seven child entities remained offline only
 because their actual upstream Home Assistant states were unavailable/unknown;
 that truthful entity state is not a connector outage. The disposable Home
-Assistant instance remained unchanged, and Simba was not mutated.
+Assistant instance remained unchanged, and Alpha was not mutated.
 
 ## r26 final installed Hub connector re-certification — 2026-07-16
 
@@ -258,7 +258,7 @@ The final source regression evidence passed:
 
 Final disposition: **PASS for the installed r26 Home Assistant connector's
 normal refresh, honest outage/stale-data presentation, and immediate recovery
-journey**. The no-mutation statement for Simba remains unchanged.
+journey**. The no-mutation statement for Alpha remains unchanged.
 
 ## r27 final Hub re-certification — 2026-07-17
 
@@ -290,7 +290,7 @@ clamshell sleep suspended Colima at each recorded lease-loss time. A fresh
 24-hour r27 check remains scheduled on the exact image and is not pre-claimed.
 
 Final disposition: **PASS for the exact installed r27 Home Assistant normal,
-outage, cached-data, and recovery journey**. Production Simba remained
+outage, cached-data, and recovery journey**. Production Alpha remained
 read-only and unmodified.
 
 ## r27 24-hour checkpoint — 2026-07-21
@@ -300,11 +300,11 @@ Checkpoint result: **FAIL / blocker for the exact-r27 24-hour installed soak**.
 The checkpoint was run at `2026-07-21T15:53:18Z`, after the scheduled
 `2026-07-16T16:15:00Z` r27 observation start. The installed Docker runtime was
 not running: `docker context show` selected `colima`, `docker ps` failed because
-`/Users/michael/.colima/default/docker.sock` was absent, and `colima status`
+`/Users/demo/.colima/default/docker.sock` was absent, and `colima status`
 reported `colima is not running`. The default Docker context was also
 unavailable at `/var/run/docker.sock`.
 
-Strict endpoint checks did not reach the installed hub: `https://192.168.0.118:28443/version`
+Strict endpoint checks did not reach the installed hub: `https://192.168.8.118:28443/version`
 and `/healthz` both timed out, and the local console port `http://localhost:3000`
 refused connection. The Colima host-agent log shows the VM entered
 `VirtualMachineStateError` at `2026-07-16T21:49:29+10:00` and socket forwarding
@@ -329,12 +329,12 @@ remains unproven**.
 This follow-up checkpoint was run at `2026-07-22T02:21:48Z`. The current Docker
 context was `default`, but `/var/run/docker.sock` was absent and `docker ps`
 could not connect. The Colima Docker socket
-`/Users/michael/.colima/default/docker.sock` was also absent, `colima status`
+`/Users/demo/.colima/default/docker.sock` was also absent, `colima status`
 reported `colima is not running`, and no `Docker`, `colima`, `lima`, `qemu`, or
 `vz` process was visible to `pgrep` at the checkpoint.
 
 Strict endpoint checks again did not reach the installed hub:
-`https://192.168.0.118:28443/version` and `/healthz` timed out with HTTP `000`,
+`https://192.168.8.118:28443/version` and `/healthz` timed out with HTTP `000`,
 and `http://localhost:3000` refused connection. The Colima logs show the VM had
 been started and stopped earlier on `2026-07-22` (`10:31:18+09:00` to
 `10:41:27+09:00`, then `10:42:39+09:00` to `10:44:58+09:00`), with LabTether
