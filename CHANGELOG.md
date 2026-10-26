@@ -52,6 +52,9 @@ Changes since 1.2.0.
   anonymous pull check succeeds.
 - A release tag must look like `v1.7.0` and match the integration and add-on
   versions before anything is built.
+- The base image and Alpine packages are updated to their current security
+  releases, including c-ares 1.34.9 and a CA bundle without the withdrawn
+  emSign root.
 
 ### Project
 

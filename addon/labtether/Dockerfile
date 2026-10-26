@@ -1,5 +1,5 @@
 # hadolint global ignore=DL3002
-ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24@sha256:3d488926053a19c806784c86ab300de0d4b2f7a2b2298948d692d93aec0ad743
+ARG BUILD_FROM=ghcr.io/home-assistant/amd64-base:3.24@sha256:20d9028d56eaa3dd3013f6e0a7957b4911e4c71e14f85d1f609bba4fe429e84a
 # `scratch` is an intentionally non-runnable sentinel. Release and local builds
 # must provide a versioned, registry-resolved digest through
 # --build-arg HUB_IMAGE=...@sha256:; the validator rejects this default.
@@ -29,8 +29,8 @@ COPY --from=reference-validator /immutable-inputs-verified /immutable-inputs-ver
 # pg_upgrade or dump/restore path before changing the persisted database format.
 RUN apk add --update-cache --no-cache \
   bash=5.3.9-r1 \
-  c-ares=1.34.8-r0 \
-  ca-certificates=20260909-r0 \
+  c-ares=1.34.9-r0 \
+  ca-certificates=20261020-r0 \
   jq=1.8.2-r0 \
   libcrypto3=3.5.9-r0 \
   libssl3=3.5.9-r0 \

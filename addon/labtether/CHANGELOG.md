@@ -28,7 +28,9 @@ Changes:
 - Images are built from digest-pinned base and Hub images, include provenance
   and SBOM attestations, and are published only after an anonymous pull check
   succeeds.
-- Updated Alpine packages to their current security releases.
+- Updated the Home Assistant base image and Alpine packages to their current
+  security releases, including c-ares 1.34.9 and a CA bundle without the
+  withdrawn emSign root.
 
 ## 0.1.0-alpha
 
