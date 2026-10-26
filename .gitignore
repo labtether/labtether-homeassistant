@@ -65,3 +65,6 @@ home-assistant_v2.db*
 .playwright-mcp/
 .playwright-cli/
 .gstack/
+
+# Local task scratch space
+work/

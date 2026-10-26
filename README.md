@@ -172,3 +172,11 @@ LABTETHER_QA_HUB_CA_FILE=</path/to/candidate-hub-ca.pem> \
 Omit `LABTETHER_QA_HUB_CA_FILE` only when the candidate Hub certificate is
 already trusted by the system. The verifier never disables candidate Hub
 certificate or hostname checks.
+
+## Security
+
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+
+## License
+
+Apache License 2.0. See [LICENSE](LICENSE).
