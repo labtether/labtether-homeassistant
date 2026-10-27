@@ -13,7 +13,8 @@ on the one-time owner setup screen with the setup token described below.
 The console uses the Hub's own certificate, the same one served on port 8443.
 Until you trust the Hub's certificate authority, the browser shows a
 certificate warning. Sign-in needs HTTPS, so keep the default `tls_mode`
-unless you put your own HTTPS proxy in front of the console.
+unless you put your own HTTPS proxy in front of port 3000. That proxy must send
+`X-Forwarded-Proto` and the browser's `Host` (or `X-Forwarded-Host`).
 
 The add-on includes the agent installers from the matching Hub release, so you
 can add devices from the console.

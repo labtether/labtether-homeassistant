@@ -5,8 +5,13 @@
 // with the Hub's own certificate and forwards plain HTTP to the console on
 // 127.0.0.1:3001. It replaces every X-Forwarded-* header, so the console (run
 // with LABTETHER_TRUST_PROXY_HOPS=1) checks the browser's real origin and
-// address and a client cannot choose them. Without a certificate (tls_mode
-// disabled) it serves plain HTTP the same way.
+// address and a client cannot choose them.
+//
+// Without a certificate (tls_mode disabled) it serves plain HTTP. Sign-in then
+// needs an HTTPS proxy run by the user, so the scheme and host that proxy
+// reports are kept. Browsers cannot add these headers to cross-site requests
+// without a CORS preflight the console never grants, so the console's origin
+// check still holds. The client address is always the one this listener sees.
 import { readFileSync } from "node:fs";
 import { createServer as createHttpServer, request } from "node:http";
 import { createServer as createHttpsServer } from "node:https";
@@ -33,6 +38,7 @@ const HOP_BY_HOP_HEADERS = [
 const certFile = process.env.CONSOLE_TLS_CERT ?? "";
 const keyFile = process.env.CONSOLE_TLS_KEY ?? "";
 const proto = certFile ? "https" : "http";
+const keepClientForwarding = !certFile;
 
 function blockedHeaders(headers) {
   const blocked = new Set(HOP_BY_HOP_HEADERS);
@@ -43,14 +49,34 @@ function blockedHeaders(headers) {
   return blocked;
 }
 
-function browserPort(host) {
+function firstHeaderValue(value) {
+  return String(Array.isArray(value) ? value[0] : value ?? "").split(",")[0].trim();
+}
+
+function forwardedScheme(req) {
+  if (keepClientForwarding) {
+    const scheme = firstHeaderValue(req.headers["x-forwarded-proto"]).toLowerCase();
+    if (scheme === "http" || scheme === "https") return scheme;
+  }
+  return proto;
+}
+
+function forwardedHost(req) {
+  if (keepClientForwarding) {
+    const host = firstHeaderValue(req.headers["x-forwarded-host"]);
+    if (host && !/[\s/\\@?#]/.test(host)) return host;
+  }
+  return req.headers.host ?? "";
+}
+
+function browserPort(scheme, host) {
   try {
-    const { port } = new URL(`${proto}://${host}`);
+    const { port } = new URL(`${scheme}://${host}`);
     if (port) return port;
   } catch {
     // Fall back to the scheme's default port.
   }
-  return proto === "https" ? "443" : "80";
+  return scheme === "https" ? "443" : "80";
 }
 
 function upstreamHeaders(req, isWebSocket) {
@@ -68,10 +94,12 @@ function upstreamHeaders(req, isWebSocket) {
     }
     headers[name] = value;
   }
-  headers["x-forwarded-proto"] = proto;
-  if (req.headers.host) {
-    headers["x-forwarded-host"] = req.headers.host;
-    headers["x-forwarded-port"] = browserPort(req.headers.host);
+  const scheme = forwardedScheme(req);
+  const host = forwardedHost(req);
+  headers["x-forwarded-proto"] = scheme;
+  if (host) {
+    headers["x-forwarded-host"] = host;
+    headers["x-forwarded-port"] = browserPort(scheme, host);
   }
   if (req.socket.remoteAddress) headers["x-forwarded-for"] = req.socket.remoteAddress;
   if (isWebSocket) {
