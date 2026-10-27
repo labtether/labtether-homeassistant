@@ -248,12 +248,14 @@ class LiveHAQA(LiveHAClient):
     async def verify_failure_and_reconnect(self) -> None:
         self.docker("stop", self.fake_container)
 
-        async def unavailable() -> bool:
+        # The connectivity sensor must read "off" (not "unavailable") so
+        # automations on a disconnected Hub can fire.
+        async def disconnected() -> bool:
             snapshot = await self.surface_snapshot()
             hub = snapshot.get("LabTether Hub Status")
-            return bool(hub and hub.get("state") == "unavailable")
+            return bool(hub and hub.get("state") == "off")
 
-        await self.wait_for("coordinator failure state", unavailable, timeout=45)
+        await self.wait_for("coordinator failure state", disconnected, timeout=45)
         self.docker("start", self.fake_container)
         self.refresh_fake_external_url()
         await self.wait_for("coordinator recovery", self.surface_ready, timeout=60)
