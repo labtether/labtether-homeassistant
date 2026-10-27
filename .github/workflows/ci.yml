@@ -147,3 +147,47 @@ jobs:
           LABTETHER_LIVE_HA_QA: "1"
           LABTETHER_QA_PYTHON: python
         run: ./tests/ha_core_live_test.sh
+
+  ci-result:
+    name: CI result
+    needs: [line-limit, qa-contracts, test, addon-container-security, home-assistant-disposable-tls]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every selected check to pass
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import sys
+
+          jobs = json.loads(os.environ["NEEDS_JSON"])
+          required = {"line-limit", "qa-contracts"}
+          owners = {
+              "addon-installed-container": "addon-container-security",
+              "ha-disposable-tls": "home-assistant-disposable-tls",
+          }
+          if not isinstance(jobs, dict) or set(jobs) != required | {"test"} | set(owners.values()):
+              sys.exit("CI results do not contain the complete expected job set")
+          outputs = jobs["qa-contracts"]["outputs"]
+          checks = outputs.get("checks_required")
+          contracts = outputs.get("contracts")
+          if checks not in ("true", "false") or not isinstance(contracts, str):
+              sys.exit("QA selection did not produce a valid check plan")
+          selected = set(contracts.split(",")) - {""}
+          if selected - owners.keys():
+              sys.exit("QA selection contains a contract without a CI check")
+          # Add-on docs match a contract glob but still skip source checks.
+          # Match the job predicates: both checks and contract must be enabled.
+          if checks == "true":
+              required.add("test")
+              required.update(owners[contract] for contract in selected)
+          failed = [name for name, job in jobs.items()
+                    if job["result"] not in (("success",) if name in required else ("success", "skipped"))]
+          if failed:
+              sys.exit("CI failed: " + ", ".join(sorted(failed)))
+          print("All required CI checks passed.")
+          PY
