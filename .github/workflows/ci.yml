@@ -174,7 +174,7 @@ jobs:
               sys.exit("CI results do not contain the complete expected job set")
           outputs = jobs["qa-contracts"]["outputs"]
           checks = outputs.get("checks_required")
-          contracts = outputs.get("contracts")
+          contracts = outputs.get("contracts", "")
           if checks not in ("true", "false") or not isinstance(contracts, str):
               sys.exit("QA selection did not produce a valid check plan")
           selected = set(contracts.split(",")) - {""}
