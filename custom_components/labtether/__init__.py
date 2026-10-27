@@ -9,10 +9,15 @@ from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.service import async_register_admin_service
-from homeassistant.exceptions import ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 import voluptuous as vol
 
-from .api import HubCACertificateError, LabTetherApiClient
+from .api import (
+    HubCACertificateError,
+    LabTetherApiClient,
+    LabTetherApiError,
+    LabTetherPermissionError,
+)
 from .tls import async_load_hub_ca_context
 from .const import (
     DOMAIN,
@@ -298,13 +303,20 @@ def _register_run_action_service(hass: HomeAssistant) -> None:
             raise vol.Invalid("run_action does not accept arbitrary parameters")
 
         client: LabTetherApiClient = target["client"]
-        await client.async_run_action(
-            asset_id=asset_id,
-            action_type="connector_action",
-            connector_id=source,
-            action_id=action,
-            params=params,
-        )
+        try:
+            await client.async_run_action(
+                asset_id=asset_id,
+                action_type="connector_action",
+                connector_id=source,
+                action_id=action,
+                params=params,
+            )
+        except LabTetherPermissionError as err:
+            raise HomeAssistantError(
+                "The LabTether API key needs the actions:exec scope to run actions"
+            ) from err
+        except LabTetherApiError as err:
+            raise HomeAssistantError(f"LabTether could not run {action}: {err}") from err
     async_register_admin_service(
         hass,
         DOMAIN,

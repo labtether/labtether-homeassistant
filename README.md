@@ -17,7 +17,7 @@ cleanup, outage recovery, restart, and removal behavior.
 ## Features
 
 - **Monitoring**: Each LabTether asset becomes an HA device with status and telemetry sensors
-- **Control**: Start/stop VMs and containers via power switches
+- **Control**: Start and shut down VMs and containers with power switches
 - **Automations**: Use the `labtether.run_action` service in HA automations
 - **Dynamic discovery**: Newly discovered LabTether assets appear in Home Assistant without reloading the integration
 - **Multi-hub safe**: Entity unique IDs and device identifiers are namespaced per LabTether connection
@@ -61,7 +61,9 @@ Copy the `custom_components/labtether` directory into your Home Assistant `confi
 2. Search for "LabTether"
 3. On **Connect to LabTether Hub**, enter:
    - your LabTether hub URL (for example `https://lab.local:8443`),
-   - a dedicated least-privilege API key for this Home Assistant instance,
+   - a dedicated least-privilege API key for this Home Assistant instance with
+     the `assets:read`, `metrics:read` and `alerts:read` scopes, plus
+     `actions:exec` if you use power switches or `labtether.run_action`,
    - for a private CA, the absolute path to its PEM file **inside Home Assistant**
      (for example `/config/labtether-ca.pem`),
    - an optional display name.
@@ -106,7 +108,7 @@ If a LabTether asset is removed permanently, Home Assistant can now remove its s
 ### Hub Device
 | Entity | Type | Description |
 |--------|------|-------------|
-| Status | Binary Sensor | Hub reachability |
+| Status | Binary Sensor | Hub reachability (off when the last poll failed) |
 | Total Assets | Sensor | Count of all monitored assets |
 | Active Alerts | Sensor | Count of firing alerts |
 
@@ -117,7 +119,13 @@ If a LabTether asset is removed permanently, Home Assistant can now remove its s
 | CPU Usage | Sensor | CPU utilization % (compute assets) |
 | Memory Usage | Sensor | Memory utilization % (compute assets) |
 | Disk Usage | Sensor | Disk utilization % (compute assets) |
-| Power | Switch | Start/stop (VMs and containers only) |
+| Power | Switch | Start/shut down (VMs and containers only, administrators only) |
+
+Power switches work for Proxmox VMs and LXC containers, TrueNAS VMs and Docker
+containers. Turning a Proxmox switch off asks the guest to shut down; a guest
+that ignores the request keeps running. Force stop stays a separate action in
+LabTether or through `labtether.run_action`. Only Home Assistant
+administrators can use power switches; automations can too.
 
 ## Services
 
@@ -129,6 +137,8 @@ connector actions or parameters.
 
 Use `vm.start` / `vm.stop` for VMs, `ct.start` / `ct.stop` for Proxmox
 containers, and `container.start` / `container.stop` for Docker containers.
+For Proxmox, `vm.shutdown` / `ct.shutdown` ask the guest to shut down, while
+`vm.stop` / `ct.stop` force it off.
 
 ```yaml
 service: labtether.run_action

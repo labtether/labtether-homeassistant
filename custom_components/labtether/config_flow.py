@@ -10,7 +10,13 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import HubCACertificateError, LabTetherApiClient, LabTetherApiError, hub_origin_is_valid
+from .api import (
+    HubCACertificateError,
+    LabTetherApiClient,
+    LabTetherApiError,
+    LabTetherPermissionError,
+    hub_origin_is_valid,
+)
 from .tls import async_load_hub_ca_context
 from .const import (
     DOMAIN,
@@ -192,6 +198,8 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     @staticmethod
     def _classify_api_error(err: LabTetherApiError) -> str:
+        if isinstance(err, LabTetherPermissionError):
+            return "missing_scope"
         message = str(err).lower()
         if "authentication failed" in message:
             return "invalid_auth"

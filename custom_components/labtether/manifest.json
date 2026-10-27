@@ -2,7 +2,7 @@
   "domain": "labtether",
   "name": "LabTether",
   "codeowners": [
-    "@watari-dev"
+    "@labtether"
   ],
   "config_flow": true,
   "documentation": "https://github.com/labtether/labtether-homeassistant",

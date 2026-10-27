@@ -304,7 +304,7 @@ class LiveHAQA(LiveHAClient):
         actions = await self.wait_for("three bounded action requests", actions_ready)
         expected = {
             ("ltqa-pve-vm-100", "proxmox", "vm.start"),
-            ("ltqa-pve-vm-100", "proxmox", "vm.stop"),
+            ("ltqa-pve-vm-100", "proxmox", "vm.shutdown"),
             ("ltqa-docker-container", "docker", "container.start"),
         }
         observed = {
