@@ -122,6 +122,8 @@ def test_addon_publishes_https_only_by_default():
 
     assert config["ports"]["8080/tcp"] is None
     assert config["ports"]["8443/tcp"] == 8443
+    # The owner setup screen is in the web console, served over HTTPS here.
+    assert config["ports"]["3000/tcp"] == 3000
 
 
 def test_cross_tls_verifier_rejects_http_before_reading_tokens():

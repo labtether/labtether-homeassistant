@@ -4,6 +4,20 @@ Add `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-re
 under **Settings > Add-ons > Add-on Store**. The branch suffix selects the
 published add-on repository layout.
 
+## Web console
+
+Open the web console at `https://<home-assistant-host>:3000`, or use
+**Open Web UI** on the add-on page. On first start, create the owner account
+on the one-time owner setup screen with the setup token described below.
+
+The console uses the Hub's own certificate, the same one served on port 8443.
+Until you trust the Hub's certificate authority, the browser shows a
+certificate warning. Sign-in needs HTTPS, so keep the default `tls_mode`
+unless you put your own HTTPS proxy in front of the console.
+
+The add-on includes the agent installers from the matching Hub release, so you
+can add devices from the console.
+
 ## Configuration
 
 - `labtether_owner_token`: owner API token (optional when `auto_generate_credentials=true`)
@@ -56,13 +70,14 @@ does not mount the household Home Assistant configuration or shared files.
 
 ## Networking
 
-Default exposed port:
+Default exposed ports:
 
-- `8443/tcp` (HTTPS)
+- `3000/tcp`: web console (HTTPS)
+- `8443/tcp`: Hub API and agent connections (HTTPS)
 
 The internal HTTP redirect listener on port `8080` is not published by default.
 
 ## Notes
 
-This add-on runs the LabTether hub runtime.
-For Home Assistant entities/services integration, install the custom integration from this repository's `custom_components/labtether` directory.
+This add-on runs the LabTether Hub and its web console.
+For Home Assistant entities and services, install the custom integration from this repository's `custom_components/labtether` directory.

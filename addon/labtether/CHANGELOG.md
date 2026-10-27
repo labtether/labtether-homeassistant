@@ -16,6 +16,10 @@ Check before upgrading:
 
 Changes:
 
+- The add-on now includes the web console, served over HTTPS on port `3000`
+  with the Hub's own certificate. Earlier builds had no console, so the owner
+  setup screen could not be reached.
+- The add-on now includes the agent installers from the matching Hub release.
 - Added the `labtether_setup_token` option and a one-time setup token for
   creating the owner account in the browser. A used token cannot come back
   after a restart.

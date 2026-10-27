@@ -11,11 +11,14 @@
   "host_network": false,
   "ingress": false,
   "ingress_port": 8443,
+  "webui": "https://[HOST]:[PORT:3000]/",
   "ports_description": {
+    "3000/tcp": "LabTether web console (HTTPS; plain HTTP when tls_mode is disabled)",
     "8080/tcp": "LabTether HTTP redirect/health listener (not published by default)",
     "8443/tcp": "LabTether HTTPS API (auto/external TLS mode)"
   },
   "ports": {
+    "3000/tcp": 3000,
     "8080/tcp": null,
     "8443/tcp": 8443
   },

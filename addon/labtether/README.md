@@ -5,6 +5,9 @@ This add-on runs the LabTether hub runtime inside Home Assistant.
 ## What This Add-on Provides
 
 - Starts the LabTether hub binary (`cmd/labtether`) inside the add-on container.
+- Serves the LabTether web console over HTTPS on port `3000`, including the
+  one-time owner setup screen.
+- Includes the agent installers from the matching Hub release.
 - Supports either:
   - external Postgres via `database_url`, or
   - bundled local Postgres initialized in `/data/postgres` when `database_url` is empty.
@@ -54,7 +57,7 @@ and fails before building if it cannot obtain one.
 
 ## Notes
 
-- This add-on package currently targets the LabTether hub runtime and API endpoints.
+- The web console and Hub API use the Hub's own certificate on ports `3000` and `8443`.
 - For Home Assistant entity/sensor integration, continue using the custom integration in this repository's `custom_components/labtether` directory.
 
 ## Release Automation
