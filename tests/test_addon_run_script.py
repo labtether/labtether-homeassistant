@@ -133,7 +133,7 @@ def test_cross_tls_verifier_rejects_http_before_reading_tokens():
         text=True,
         env={
             **os.environ,
-            "LABTETHER_QA_HUB_CONTAINER": "unused",
+            "LABTETHER_QA_HUB_API_KEY_FILE": "/nonexistent/unused",
             "LABTETHER_QA_HUB_URL": "http://127.0.0.1:8080",
         },
     )
@@ -151,5 +151,7 @@ def test_cross_tls_verifier_never_disables_candidate_hub_verification():
     assert "--cacert" in verifier
     assert "--noproxy '*'" in verifier
     assert '.service == "labtether-hub"' in verifier
-    assert 'docker exec "${HUB_CONTAINER}" cat -- "${HUB_TOKEN_PATH}"' in verifier
+    # The Hub's shared console token file can only read runtime settings.
+    assert "/run/labtether/api-token" not in verifier
+    assert '< "${HUB_API_KEY_FILE}"' in verifier
     assert verifier.index('"${HUB_URL%/}/"') < verifier.index('hub_token="$(')
