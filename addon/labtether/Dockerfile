@@ -32,6 +32,7 @@ RUN apk add --update-cache --no-cache \
   c-ares=1.34.9-r0 \
   ca-certificates=20261020-r0 \
   jq=1.8.2-r0 \
+  libatomic=15.2.0-r5 \
   libcrypto3=3.5.9-r0 \
   libssl3=3.5.9-r0 \
   libstdc++=15.2.0-r5 \
@@ -46,7 +47,7 @@ RUN apk add --update-cache --no-cache \
 
 COPY --from=hub /usr/local/bin/labtether /usr/local/bin/labtether
 # The web console holds the owner setup screen. Both images use Alpine 3.24, so
-# the Hub image's Node binary runs here with only libstdc++ added above. Code
+# the Hub image's Node binary runs here with libstdc++ and libatomic added above. Code
 # stays root-owned; the console may write only its Next.js cache.
 COPY --from=hub /usr/local/bin/node /usr/local/bin/node
 COPY --from=hub --chown=root:root /app/console/ /app/console/
