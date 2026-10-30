@@ -21,7 +21,7 @@ This add-on runs the LabTether hub runtime inside Home Assistant.
 - `labtether_setup_token` (optional when `auto_generate_credentials=true`; used only by one-time owner setup)
 - `encryption_key` (optional when `auto_generate_credentials=true`; must decode to 32 bytes)
 - `database_url` (optional; leave empty for local Postgres)
-- `tls_mode` (`auto`, `external`, `disabled`)
+- `tls_mode` (`auto`, `disabled`)
 - `auto_generate_credentials` (`true` recommended for first install)
 
 ## Generated Credentials
@@ -62,7 +62,9 @@ and fails before building if it cannot obtain one.
 
 ## Release Automation
 
-- Workflow: `.github/workflows/addon-release.yml`.
+- Workflow: `.github/workflows/addon-release.yml`. It runs only from a
+  `vX.Y.Z` tag. Only the newest release moves the `latest` image tags and the
+  hosted repository branch.
 - Produces:
   - GHCR images per architecture (`labtether-homeassistant-addon-amd64`, `labtether-homeassistant-addon-aarch64`),
   - repository layout artifacts (`dist/ha-addon-repository` + tarball),

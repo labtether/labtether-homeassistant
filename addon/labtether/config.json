@@ -7,6 +7,7 @@
   "arch": ["aarch64", "amd64"],
   "startup": "services",
   "boot": "auto",
+  "backup": "cold",
   "init": false,
   "host_network": false,
   "ingress": false,
@@ -15,7 +16,7 @@
   "ports_description": {
     "3000/tcp": "LabTether web console (HTTPS; plain HTTP when tls_mode is disabled)",
     "8080/tcp": "LabTether HTTP redirect/health listener (not published by default)",
-    "8443/tcp": "LabTether HTTPS API (auto/external TLS mode)"
+    "8443/tcp": "LabTether HTTPS API (unless tls_mode is disabled)"
   },
   "ports": {
     "3000/tcp": 3000,
@@ -38,7 +39,7 @@
     "labtether_setup_token": "str?",
     "encryption_key": "str?",
     "database_url": "str?",
-    "tls_mode": "list(auto|external|disabled)",
+    "tls_mode": "list(auto|disabled)",
     "auto_generate_credentials": "bool"
   }
 }

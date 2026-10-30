@@ -31,14 +31,18 @@ route. Never reuse its disposable credentials or TLS bypass outside QA.
 Each TLS restart generates a fresh certificate chain, so CA-trusting clients
 must reread the PEM from the same path afterward.
 
-To verify the exact candidate hub connector path without printing either token:
+To verify the exact candidate hub connector path without printing either token,
+create a disposable API key on the candidate Hub with the `connectors:write`
+scope and save it in a file only you can read (mode `0600`):
 
 ```bash
-LABTETHER_QA_HUB_CONTAINER=<hub-container> \
 LABTETHER_QA_HUB_URL=https://<hub-host>:<port> \
+LABTETHER_QA_HUB_API_KEY_FILE=</path/to/hub-api-key> \
 LABTETHER_QA_HUB_CA_FILE=</path/to/candidate-hub-ca.pem> \
   ./tests/verify_ha_cross_tls_connector.sh
 ```
+
+Delete the key on the Hub when the check is done.
 
 Omit `LABTETHER_QA_HUB_CA_FILE` only when the candidate Hub certificate is
 already trusted by the system. The verifier never disables candidate Hub

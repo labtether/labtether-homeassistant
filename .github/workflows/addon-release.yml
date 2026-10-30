@@ -1,22 +1,19 @@
 name: Home Assistant Add-on Release
 
+# Publishing runs only from a release tag. A manual run could build any
+# branch under a released version and overwrite what Supervisor installs. To
+# retry a failed release, re-run the tag's workflow run.
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
-    inputs:
-      version:
-        description: "Add-on version override (defaults to tag name without leading v)"
-        required: false
-        type: string
-      publish_repo_branch:
-        description: "Publish hosted addon repository branch"
-        required: false
-        type: boolean
-        default: true
 
 permissions:
   contents: read
+
+# Two release runs must not race to move :latest or the hosted repository.
+concurrency:
+  group: addon-release
+  cancel-in-progress: false
 
 jobs:
   prepare:
@@ -27,17 +24,18 @@ jobs:
     outputs:
       version: ${{ steps.meta.outputs.version }}
       owner_lc: ${{ steps.meta.outputs.owner_lc }}
-      publish_repo_branch: ${{ steps.meta.outputs.publish_repo_branch }}
+      newest: ${{ steps.meta.outputs.newest }}
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # All tags, to tell whether this is the newest release.
+          fetch-depth: 0
 
       # The tag also selects ghcr.io/labtether/labtether:<tag>, so an HA tag
       # must be a plain release version that matches the shipped metadata.
       - name: Require release tag to match integration and add-on versions
-        if: github.ref_type == 'tag'
         run: |
           set -euo pipefail
           if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -55,33 +53,25 @@ jobs:
 
       - name: Resolve release metadata
         id: meta
-        env:
-          INPUT_VERSION: ${{ github.event.inputs.version }}
-          INPUT_PUBLISH: ${{ github.event.inputs.publish_repo_branch }}
         run: |
           set -euo pipefail
 
-          version="${INPUT_VERSION:-}"
-
-          if [[ -z "${version}" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-              version="${GITHUB_REF_NAME#v}"
-            else
-              version="${GITHUB_SHA::12}"
-            fi
-          fi
-
+          version="${GITHUB_REF_NAME#v}"
           owner_lc="$(echo "${GITHUB_REPOSITORY_OWNER}" | tr '[:upper:]' '[:lower:]')"
 
-          publish_repo_branch="true"
-          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" && "${INPUT_PUBLISH}" == "false" ]]; then
-            publish_repo_branch="false"
+          # Only the newest release moves :latest and the hosted repository, so
+          # a patch for an older line cannot downgrade existing installs.
+          newest_tag="$(git tag --list 'v*' \
+            | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -n 1)"
+          newest="false"
+          if [[ "${newest_tag}" == "${GITHUB_REF_NAME}" ]]; then
+            newest="true"
           fi
 
           {
             echo "version=${version}"
             echo "owner_lc=${owner_lc}"
-            echo "publish_repo_branch=${publish_repo_branch}"
+            echo "newest=${newest}"
           } >> "$GITHUB_OUTPUT"
 
   build-addon-images:
@@ -149,7 +139,7 @@ jobs:
             HUB_IMAGE=${{ steps.hub-image.outputs.reference }}
           tags: |
             ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:${{ needs.prepare.outputs.version }}
-            ghcr.io/${{ needs.prepare.outputs.owner_lc }}/labtether-homeassistant-addon-${{ matrix.arch }}:latest
+            ${{ needs.prepare.outputs.newest == 'true' && format('ghcr.io/{0}/labtether-homeassistant-addon-{1}:latest', needs.prepare.outputs.owner_lc, matrix.arch) || '' }}
           labels: |
             org.opencontainers.image.title=LabTether Home Assistant Add-on
             org.opencontainers.image.version=${{ needs.prepare.outputs.version }}
@@ -221,7 +211,7 @@ jobs:
           files: dist/labtether-ha-addon-repository-${{ needs.prepare.outputs.version }}.tar.gz
 
       - name: Publish hosted add-on repository branch
-        if: needs.prepare.outputs.publish_repo_branch == 'true'
+        if: needs.prepare.outputs.newest == 'true'
         uses: peaceiris/actions-gh-pages@84c30a85c19949d7eee79c4ff27748b70285e453 # v4.1.0
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
