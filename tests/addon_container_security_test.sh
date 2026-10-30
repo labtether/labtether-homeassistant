@@ -159,6 +159,59 @@ then
   exit 1
 fi
 
+# The owner setup screen is part of the web console. It must answer over HTTPS
+# on its published port and reach the Hub through its own certificate check.
+console_ready="false"
+for _ in $(seq 1 60); do
+  if docker exec "${CONTAINER_NAME}" sh -c "curl --disable --insecure --silent --fail --max-time 5 \
+    --noproxy '*' https://127.0.0.1:3000/api/auth/bootstrap/status | jq -e 'type == \"object\"'" \
+    >/dev/null 2>&1; then
+    console_ready="true"
+    break
+  fi
+  sleep 1
+done
+if [[ "${console_ready}" != "true" ]]; then
+  echo "web console did not answer over HTTPS on port 3000" >&2
+  docker logs "${CONTAINER_NAME}" >&2
+  exit 1
+fi
+
+# A sign-in from the console's own HTTPS origin must reach the Hub (401 for an
+# unknown user), and a client must not be able to pick its origin by sending
+# its own forwarding headers.
+console_login_status() {
+  docker exec "${CONTAINER_NAME}" curl --disable --insecure --silent --max-time 10 \
+    --noproxy '*' --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' "$@" \
+    --data '{"username":"ltqa-no-such-user","password":"not-a-real-password"}' \
+    https://127.0.0.1:3000/api/auth/login
+}
+same_origin_status="$(console_login_status --header 'Origin: https://127.0.0.1:3000')"
+if [[ "${same_origin_status}" != "401" ]]; then
+  echo "console sign-in from its HTTPS origin returned ${same_origin_status}, expected 401" >&2
+  exit 1
+fi
+spoofed_status="$(console_login_status \
+  --header 'Origin: https://ltqa-other.invalid' \
+  --header 'X-Forwarded-Host: ltqa-other.invalid' \
+  --header 'X-Forwarded-Proto: https')"
+if [[ "${spoofed_status}" != "403" ]]; then
+  echo "console accepted a client-chosen origin (status ${spoofed_status})" >&2
+  exit 1
+fi
+
+console_uid="$(docker exec "${CONTAINER_NAME}" sh -c \
+  'for pid in $(pidof node); do awk "/^Uid:/ { print \$2; exit }" "/proc/${pid}/status"; done' | sort -u)"
+if [[ "${console_uid}" != "10001" ]]; then
+  echo "web console processes have unexpected uid ${console_uid:-none}" >&2
+  exit 1
+fi
+if ! docker exec "${CONTAINER_NAME}" test -d /opt/labtether/agents; then
+  echo "bundled agent installers are missing" >&2
+  exit 1
+fi
+
 assert_mode_owner() {
   local path="$1"
   local expected="$2"

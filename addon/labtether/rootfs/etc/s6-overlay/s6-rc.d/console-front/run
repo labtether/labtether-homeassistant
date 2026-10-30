@@ -1,0 +1,35 @@
+#!/bin/bash
+# shellcheck shell=bash
+# Publishes the web console on port 3000. It uses the Hub's own certificate,
+# so browsers see the same certificate as on port 8443.
+set -euo pipefail
+
+# shellcheck source=addon/labtether/lib/console-env.sh
+source /usr/local/lib/labtether-addon/console-env.sh
+
+tls_mode="$(console_tls_mode)"
+cert_file=""
+key_file=""
+case "${tls_mode}" in
+  auto)
+    cert_file="/data/certs/server.crt"
+    key_file="/data/certs/server.key"
+    ;;
+  external)
+    # run.sh copies the configured files here before it starts the Hub.
+    cert_file="/run/labtether/external-tls/server.crt"
+    key_file="/run/labtether/external-tls/server.key"
+    ;;
+esac
+
+if [[ -n "${cert_file}" ]]; then
+  console_wait_for_file "${cert_file}"
+  console_wait_for_file "${key_file}"
+fi
+
+exec su-exec labtether:labtether /usr/bin/env -i \
+  HOME=/home/labtether \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  CONSOLE_TLS_CERT="${cert_file}" \
+  CONSOLE_TLS_KEY="${key_file}" \
+  /usr/local/bin/node /usr/local/lib/labtether-addon/console-front.mjs

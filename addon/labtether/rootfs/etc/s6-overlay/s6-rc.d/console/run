@@ -1,0 +1,44 @@
+#!/bin/bash
+# shellcheck shell=bash
+# Web console (Next.js) on 127.0.0.1:3001. The console-front service publishes
+# it on port 3000. Both run as the same unprivileged account as the Hub.
+set -euo pipefail
+
+# shellcheck source=addon/labtether/lib/console-env.sh
+source /usr/local/lib/labtether-addon/console-env.sh
+
+tls_mode="$(console_tls_mode)"
+api_base_url="https://localhost:8443"
+hub_api_port="8443"
+ca_file=""
+case "${tls_mode}" in
+  auto) ca_file="/data/certs/ca.crt" ;;
+  disabled)
+    api_base_url="http://localhost:8080"
+    hub_api_port=""
+    ;;
+esac
+
+# The Hub writes the console's service token at startup. In auto mode, also
+# wait for the Hub's private CA: Node reads NODE_EXTRA_CA_CERTS only once.
+console_wait_for_file "${CONSOLE_API_TOKEN_FILE}"
+if [[ -n "${ca_file}" ]]; then
+  console_wait_for_file "${ca_file}"
+fi
+
+cd /app/console
+# Pass only what the console needs; the Hub's bootstrap secrets stay out.
+exec su-exec labtether:labtether /usr/bin/env -i \
+  HOME=/home/labtether \
+  PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+  NODE_ENV=production \
+  NEXT_TELEMETRY_DISABLED=1 \
+  HOSTNAME=127.0.0.1 \
+  PORT=3001 \
+  LABTETHER_API_BASE_URL="${api_base_url}" \
+  LABTETHER_WS_PROXY_CONNECT_HOST=127.0.0.1 \
+  LABTETHER_API_TOKEN_FILE="${CONSOLE_API_TOKEN_FILE}" \
+  LABTETHER_TRUST_PROXY_HOPS=1 \
+  NEXT_PUBLIC_HUB_API_PORT="${hub_api_port}" \
+  NODE_EXTRA_CA_CERTS="${ca_file}" \
+  /usr/local/bin/node scripts/console-runtime.mjs server.js
