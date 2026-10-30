@@ -19,7 +19,7 @@ alert fires.
 
 - **A device for each machine, VM and container**, with online status and CPU,
   memory and disk sensors.
-- **Power switches** to start and stop VMs and containers.
+- **Power switches** to start and shut down VMs and containers.
 - **Hub sensors** for reachability, device count and active alerts, ready to
   use in automations.
 - **The `labtether.run_action` service** for start and stop from your own
@@ -53,7 +53,9 @@ Copy `custom_components/labtether` into your Home Assistant
 1. Go to **Settings > Devices & Services > Add Integration** and search for
    **LabTether**.
 2. Enter your hub URL (for example `https://lab.local:8443`) and an API key
-   made for this Home Assistant, with only the access it needs.
+   made for this Home Assistant, with only the access it needs: the
+   `assets:read`, `metrics:read` and `alerts:read` scopes, plus `actions:exec`
+   if you use power switches or `labtether.run_action`.
 3. If your hub uses a private CA, copy its PEM file into the Home Assistant
    config folder first and enter its path, for example
    `/config/labtether-ca.pem`. Certificate and hub-name checks stay on.
@@ -87,7 +89,7 @@ A few safety notes:
 
 | Entity | Type | Description |
 |--------|------|-------------|
-| Status | Binary sensor | Hub reachability |
+| Status | Binary sensor | Hub reachability (off when the last poll failed) |
 | Total Assets | Sensor | Count of all monitored devices |
 | Active Alerts | Sensor | Count of firing alerts |
 
@@ -99,7 +101,13 @@ A few safety notes:
 | CPU Usage | Sensor | CPU use in % (compute devices) |
 | Memory Usage | Sensor | Memory use in % (compute devices) |
 | Disk Usage | Sensor | Disk use in % (compute devices) |
-| Power | Switch | Start and stop (VMs and containers only) |
+| Power | Switch | Start and shut down (VMs and containers only, administrators only) |
+
+Power switches work for Proxmox VMs and LXC containers, TrueNAS VMs and Docker
+containers. Turning a Proxmox switch off asks the guest to shut down; a guest
+that ignores the request keeps running. Force stop stays a separate action in
+LabTether or through `labtether.run_action`. Only Home Assistant
+administrators can use power switches; automations can too.
 
 ## The `labtether.run_action` service
 
@@ -108,6 +116,8 @@ by default and does not expose any other connector actions or parameters.
 
 Use `vm.start` / `vm.stop` for VMs, `ct.start` / `ct.stop` for Proxmox
 containers, and `container.start` / `container.stop` for Docker containers.
+For Proxmox, `vm.shutdown` / `ct.shutdown` ask the guest to shut down, while
+`vm.stop` / `ct.stop` force it off.
 
 ```yaml
 service: labtether.run_action

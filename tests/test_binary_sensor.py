@@ -66,6 +66,8 @@ def test_hub_status_reflects_coordinator():
 
     coord.last_update_success = False
     assert sensor.is_on is False
+    # Automations on "off" only fire if the sensor stays available.
+    assert sensor.available is True
 
 
 @pytest.mark.asyncio

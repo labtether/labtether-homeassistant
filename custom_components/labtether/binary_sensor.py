@@ -75,6 +75,11 @@ class LabTetherHubStatusSensor(LabTetherHubEntity, BinarySensorEntity):
         self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_hub_status"
 
     @property
+    def available(self) -> bool:
+        """Stay available so a failed poll shows as off, not unavailable."""
+        return True
+
+    @property
     def is_on(self) -> bool:
         """Return True if the hub is reachable."""
         return self.coordinator.last_update_success
