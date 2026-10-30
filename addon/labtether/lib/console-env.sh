@@ -18,7 +18,7 @@ console_tls_mode() {
   mode="$(jq -r '.tls_mode // ""' "${CONSOLE_OPTIONS_FILE}")"
   case "${mode}" in
     "") echo "auto" ;;
-    auto | external | disabled) echo "${mode}" ;;
+    auto | disabled) echo "${mode}" ;;
     *)
       echo "console: unsupported tls_mode" >&2
       return 1

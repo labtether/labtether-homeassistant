@@ -15,11 +15,6 @@ case "${tls_mode}" in
     cert_file="/data/certs/server.crt"
     key_file="/data/certs/server.key"
     ;;
-  external)
-    # run.sh copies the configured files here before it starts the Hub.
-    cert_file="/run/labtether/external-tls/server.crt"
-    key_file="/run/labtether/external-tls/server.key"
-    ;;
 esac
 
 if [[ -n "${cert_file}" ]]; then
