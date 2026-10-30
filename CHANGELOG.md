@@ -3,9 +3,9 @@
 All notable changes to the LabTether Home Assistant integration and add-on.
 Add-on-only notes are also in [`addon/labtether/CHANGELOG.md`](addon/labtether/CHANGELOG.md).
 
-## 1.7.0
+## 1.7.1
 
-Changes since 1.2.0.
+Changes since 1.2.0. 1.7.0 was never released.
 
 ### Check before upgrading
 
@@ -64,7 +64,7 @@ Changes since 1.2.0.
   read-only, and a one-time setup token creates the owner account.
 - Images are built from digest-pinned inputs and are published only after an
   anonymous pull check succeeds.
-- A release tag must look like `v1.7.0` and match the integration and add-on
+- A release tag must look like `v1.7.1` and match the integration and add-on
   versions before anything is built.
 - The base image and Alpine packages are updated to their current security
   releases, including c-ares 1.34.9 and a CA bundle without the withdrawn

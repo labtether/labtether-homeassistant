@@ -52,6 +52,6 @@ certificate or hostname checks.
 
 Tag a release only after the matching Hub release is published: the add-on
 release workflow builds from `ghcr.io/labtether/labtether:<tag>`. The tag must
-look like `v1.7.0` and match the `version` in
+look like `v1.7.1` and match the `version` in
 `custom_components/labtether/manifest.json` and `addon/labtether/config.json`;
 the workflow stops before building anything otherwise.

@@ -1,8 +1,8 @@
 # Changelog
 
-## 1.7.0
+## 1.7.1
 
-Runs LabTether Hub 1.7.0.
+Runs LabTether Hub 1.7.1.
 
 Check before upgrading:
 
