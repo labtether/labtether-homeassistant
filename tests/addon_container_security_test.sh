@@ -277,10 +277,32 @@ for secret in "${OWNER_TOKEN}" "${SETUP_TOKEN}" "${ENCRYPTION_KEY}"; do
   fi
 done
 
-# Simulate the hub's post-bootstrap token consumption and restart the add-on.
-# The issued marker must prevent the option or auto-generation path from
-# recreating a setup token, while the bundled Postgres service must restart.
-docker exec --user 10001:10001 "${CONTAINER_NAME}" rm /data/labtether-addon/setup-token
+# Finish first-run setup through the console, as the owner would. The hub
+# creates the first user and removes the setup token itself. Removing the
+# token by hand is not the same: with no user and no token the hub refuses to
+# start. After the restart below, the issued marker must prevent the option or
+# auto-generation path from recreating a setup token, while the bundled
+# Postgres service must restart.
+setup_status="$(docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+  bash -se -o pipefail <<'SH'
+password="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
+jq -n --rawfile token /data/labtether-addon/setup-token --arg password "${password}" \
+  '{username: "ltqa-owner", password: $password, setup_token: $token}' \
+  | curl --disable --insecure --silent --max-time 15 --noproxy '*' \
+    --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' \
+    --header 'Origin: https://127.0.0.1:3000' \
+    --data @- https://127.0.0.1:3000/api/auth/bootstrap
+SH
+)"
+if [[ "${setup_status}" != "200" ]]; then
+  echo "first-run setup through the console returned ${setup_status}, expected 200" >&2
+  exit 1
+fi
+if docker exec "${CONTAINER_NAME}" test -e /data/labtether-addon/setup-token; then
+  echo "hub did not remove the setup token after first-run setup" >&2
+  exit 1
+fi
 # Recreate the exact marker layout from the previous release. The migration
 # must preserve the consumed-token decision without trusting arbitrary data.
 docker exec "${CONTAINER_NAME}" sh -c '
