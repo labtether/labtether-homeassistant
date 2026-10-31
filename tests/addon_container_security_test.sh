@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly HUB_IMAGE="ghcr.io/labtether/labtether@sha256:7e317791be6c8df484050316bb77ffad9a454d0d813a9299feb7c08a9911f54f"
+readonly HUB_IMAGE="ghcr.io/labtether/labtether:v1.7.1@sha256:1768b00578f0e6a35d453cd6eab38ac6578d13c02605e0901a8c277b8edd81b2"
 readonly ALPINE_IMAGE="alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a"
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
