@@ -98,6 +98,10 @@ class HubCACertificateError(LabTetherApiError):
     """The configured Hub CA certificate could not be used."""
 
 
+class LabTetherPermissionError(LabTetherApiError):
+    """The Hub accepted the API key but refused the request (missing scope)."""
+
+
 class LabTetherApiClient:
     """Client to interact with the LabTether REST API."""
 
@@ -191,6 +195,10 @@ class LabTetherApiClient:
             async with self._session.request(method, url, **request_kwargs) as resp:
                 if resp.status == 401:
                     raise LabTetherApiError("Authentication failed")
+                if resp.status == 403:
+                    raise LabTetherPermissionError(
+                        "The API key is missing a scope this request needs"
+                    )
                 if resp.status < 200 or resp.status >= 300:
                     raise LabTetherApiError(f"API request failed (HTTP {resp.status})")
                 return await self._read_bounded_json_object(resp)

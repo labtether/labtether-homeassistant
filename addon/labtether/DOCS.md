@@ -4,6 +4,21 @@ Add `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-re
 under **Settings > Add-ons > Add-on Store**. The branch suffix selects the
 published add-on repository layout.
 
+## Web console
+
+Open the web console at `https://<home-assistant-host>:3000`, or use
+**Open Web UI** on the add-on page. On first start, create the owner account
+on the one-time owner setup screen with the setup token described below.
+
+The console uses the Hub's own certificate, the same one served on port 8443.
+Until you trust the Hub's certificate authority, the browser shows a
+certificate warning. Sign-in needs HTTPS, so keep the default `tls_mode`
+unless you put your own HTTPS proxy in front of port 3000. That proxy must send
+`X-Forwarded-Proto` and the browser's `Host` (or `X-Forwarded-Host`).
+
+The add-on includes the agent installers from the matching Hub release, so you
+can add devices from the console.
+
 ## Configuration
 
 - `labtether_owner_token`: owner API token (optional when `auto_generate_credentials=true`)
@@ -11,7 +26,12 @@ published add-on repository layout.
 - `labtether_setup_token`: optional one-time token for the owner setup screen. When blank, a fresh token is generated if `auto_generate_credentials=true`.
 - `encryption_key`: base64 key that decodes to 32 bytes (optional when `auto_generate_credentials=true`)
 - `database_url`: optional Postgres DSN. Leave blank to use bundled local Postgres in `/data/postgres`.
-- `tls_mode`: `auto`, `external`, or `disabled`
+- `tls_mode`: `auto` (default) or `disabled`.
+  - `auto`: the Hub creates its own certificate authority and serves HTTPS on
+    port 8443.
+  - `disabled`: the Hub serves plain HTTP on port 8080 only, and the console
+    plain HTTP on port 3000, for use behind your own HTTPS proxy. Port 8080 is
+    not published by default; map it under **Network**.
 - `auto_generate_credentials`: when enabled, missing required service credentials and first-run setup token are generated securely.
 
 ## Generated Credentials
@@ -32,6 +52,23 @@ Secret values are never printed in add-on logs. If you cannot read the setup
 token file locally, configure a known strong `labtether_setup_token` option
 before first start and remove or rotate the option after owner setup.
 
+## Backups
+
+Home Assistant stops the add-on while it takes a backup (`backup: cold`), so
+the bundled PostgreSQL database is copied in a consistent state. The Hub is
+offline for the length of the backup.
+
+An add-on backup holds everything needed to restore the Hub:
+
+- the database, including the device credentials the Hub stores encrypted;
+- the encryption key and owner token (`/data/labtether-addon-root/`);
+- the Hub's certificate authority and private keys (`/data/certs`);
+- session recordings and the agent download cache.
+
+Anyone with the backup file can read all of it. Keep backup encryption turned
+on in Home Assistant and store backup files as carefully as passwords. With an
+external `database_url`, back up that database separately.
+
 ## Runtime isolation
 
 The add-on entrypoint performs only the mounted-volume permission bootstrap and
@@ -47,22 +84,20 @@ Legacy `runtime.env` state is migrated once by an unprivileged process and is
 never executed as root. Secret files remain mode `0600`; private state,
 certificate, recording, and runtime directories remain mode `0700`.
 
-When external TLS files are configured through `LABTETHER_TLS_CERT` and
-`LABTETHER_TLS_KEY`, the root bootstrap copies them into the private runtime
-directory with restrictive permissions before dropping privileges. Symlinked
-TLS inputs and symlinked persisted runtime roots are rejected. External
-TLS files should live under `/ssl`, which is mounted read-only. The add-on
-does not mount the household Home Assistant configuration or shared files.
+Symlinked persisted runtime roots are rejected. The add-on mounts only `/ssl`,
+read-only, and does not mount the household Home Assistant configuration or
+shared files.
 
 ## Networking
 
-Default exposed port:
+Default exposed ports:
 
-- `8443/tcp` (HTTPS)
+- `3000/tcp`: web console (HTTPS)
+- `8443/tcp`: Hub API and agent connections (HTTPS)
 
 The internal HTTP redirect listener on port `8080` is not published by default.
 
 ## Notes
 
-This add-on runs the LabTether hub runtime.
-For Home Assistant entities/services integration, install the custom integration from this repository's `custom_components/labtether` directory.
+This add-on runs the LabTether Hub and its web console.
+For Home Assistant entities and services, install the custom integration from this repository's `custom_components/labtether` directory.

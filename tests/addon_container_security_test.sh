@@ -3,7 +3,7 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly HUB_IMAGE="ghcr.io/labtether/labtether@sha256:7e317791be6c8df484050316bb77ffad9a454d0d813a9299feb7c08a9911f54f"
+readonly HUB_IMAGE="ghcr.io/labtether/labtether:v1.7.1@sha256:1768b00578f0e6a35d453cd6eab38ac6578d13c02605e0901a8c277b8edd81b2"
 readonly ALPINE_IMAGE="alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a"
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
@@ -159,6 +159,59 @@ then
   exit 1
 fi
 
+# The owner setup screen is part of the web console. It must answer over HTTPS
+# on its published port and reach the Hub through its own certificate check.
+console_ready="false"
+for _ in $(seq 1 60); do
+  if docker exec "${CONTAINER_NAME}" sh -c "curl --disable --insecure --silent --fail --max-time 5 \
+    --noproxy '*' https://127.0.0.1:3000/api/auth/bootstrap/status | jq -e 'type == \"object\"'" \
+    >/dev/null 2>&1; then
+    console_ready="true"
+    break
+  fi
+  sleep 1
+done
+if [[ "${console_ready}" != "true" ]]; then
+  echo "web console did not answer over HTTPS on port 3000" >&2
+  docker logs "${CONTAINER_NAME}" >&2
+  exit 1
+fi
+
+# A sign-in from the console's own HTTPS origin must reach the Hub (401 for an
+# unknown user), and a client must not be able to pick its origin by sending
+# its own forwarding headers.
+console_login_status() {
+  docker exec "${CONTAINER_NAME}" curl --disable --insecure --silent --max-time 10 \
+    --noproxy '*' --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' "$@" \
+    --data '{"username":"ltqa-no-such-user","password":"not-a-real-password"}' \
+    https://127.0.0.1:3000/api/auth/login
+}
+same_origin_status="$(console_login_status --header 'Origin: https://127.0.0.1:3000')"
+if [[ "${same_origin_status}" != "401" ]]; then
+  echo "console sign-in from its HTTPS origin returned ${same_origin_status}, expected 401" >&2
+  exit 1
+fi
+spoofed_status="$(console_login_status \
+  --header 'Origin: https://ltqa-other.invalid' \
+  --header 'X-Forwarded-Host: ltqa-other.invalid' \
+  --header 'X-Forwarded-Proto: https')"
+if [[ "${spoofed_status}" != "403" ]]; then
+  echo "console accepted a client-chosen origin (status ${spoofed_status})" >&2
+  exit 1
+fi
+
+console_uid="$(docker exec "${CONTAINER_NAME}" sh -c \
+  'for pid in $(pidof node); do awk "/^Uid:/ { print \$2; exit }" "/proc/${pid}/status"; done' | sort -u)"
+if [[ "${console_uid}" != "10001" ]]; then
+  echo "web console processes have unexpected uid ${console_uid:-none}" >&2
+  exit 1
+fi
+if ! docker exec "${CONTAINER_NAME}" test -d /opt/labtether/agents; then
+  echo "bundled agent installers are missing" >&2
+  exit 1
+fi
+
 assert_mode_owner() {
   local path="$1"
   local expected="$2"
@@ -224,10 +277,32 @@ for secret in "${OWNER_TOKEN}" "${SETUP_TOKEN}" "${ENCRYPTION_KEY}"; do
   fi
 done
 
-# Simulate the hub's post-bootstrap token consumption and restart the add-on.
-# The issued marker must prevent the option or auto-generation path from
-# recreating a setup token, while the bundled Postgres service must restart.
-docker exec --user 10001:10001 "${CONTAINER_NAME}" rm /data/labtether-addon/setup-token
+# Finish first-run setup through the console, as the owner would. The hub
+# creates the first user and removes the setup token itself. Removing the
+# token by hand is not the same: with no user and no token the hub refuses to
+# start. After the restart below, the issued marker must prevent the option or
+# auto-generation path from recreating a setup token, while the bundled
+# Postgres service must restart.
+setup_status="$(docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+  bash -se -o pipefail <<'SH'
+password="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
+jq -n --rawfile token /data/labtether-addon/setup-token --arg password "${password}" \
+  '{username: "ltqa-owner", password: $password, setup_token: $token}' \
+  | curl --disable --insecure --silent --max-time 15 --noproxy '*' \
+    --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' \
+    --header 'Origin: https://127.0.0.1:3000' \
+    --data @- https://127.0.0.1:3000/api/auth/bootstrap
+SH
+)"
+if [[ "${setup_status}" != "200" ]]; then
+  echo "first-run setup through the console returned ${setup_status}, expected 200" >&2
+  exit 1
+fi
+if docker exec "${CONTAINER_NAME}" test -e /data/labtether-addon/setup-token; then
+  echo "hub did not remove the setup token after first-run setup" >&2
+  exit 1
+fi
 # Recreate the exact marker layout from the previous release. The migration
 # must preserve the consumed-token decision without trusting arbitrary data.
 docker exec "${CONTAINER_NAME}" sh -c '

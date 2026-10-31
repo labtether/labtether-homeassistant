@@ -5,6 +5,9 @@ This add-on runs the LabTether hub runtime inside Home Assistant.
 ## What This Add-on Provides
 
 - Starts the LabTether hub binary (`cmd/labtether`) inside the add-on container.
+- Serves the LabTether web console over HTTPS on port `3000`, including the
+  one-time owner setup screen.
+- Includes the agent installers from the matching Hub release.
 - Supports either:
   - external Postgres via `database_url`, or
   - bundled local Postgres initialized in `/data/postgres` when `database_url` is empty.
@@ -18,7 +21,7 @@ This add-on runs the LabTether hub runtime inside Home Assistant.
 - `labtether_setup_token` (optional when `auto_generate_credentials=true`; used only by one-time owner setup)
 - `encryption_key` (optional when `auto_generate_credentials=true`; must decode to 32 bytes)
 - `database_url` (optional; leave empty for local Postgres)
-- `tls_mode` (`auto`, `external`, `disabled`)
+- `tls_mode` (`auto`, `disabled`)
 - `auto_generate_credentials` (`true` recommended for first install)
 
 ## Generated Credentials
@@ -54,12 +57,14 @@ and fails before building if it cannot obtain one.
 
 ## Notes
 
-- This add-on package currently targets the LabTether hub runtime and API endpoints.
+- The web console and Hub API use the Hub's own certificate on ports `3000` and `8443`.
 - For Home Assistant entity/sensor integration, continue using the custom integration in this repository's `custom_components/labtether` directory.
 
 ## Release Automation
 
-- Workflow: `.github/workflows/addon-release.yml`.
+- Workflow: `.github/workflows/addon-release.yml`. It runs only from a
+  `vX.Y.Z` tag. Only the newest release moves the `latest` image tags and the
+  hosted repository branch.
 - Produces:
   - GHCR images per architecture (`labtether-homeassistant-addon-amd64`, `labtether-homeassistant-addon-aarch64`),
   - repository layout artifacts (`dist/ha-addon-repository` + tarball),

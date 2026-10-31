@@ -2,20 +2,24 @@
   "name": "LabTether",
   "slug": "labtether",
   "description": "LabTether hub runtime for Home Assistant environments.",
-  "version": "1.7.0",
+  "version": "1.7.1",
   "stage": "experimental",
   "arch": ["aarch64", "amd64"],
   "startup": "services",
   "boot": "auto",
+  "backup": "cold",
   "init": false,
   "host_network": false,
   "ingress": false,
   "ingress_port": 8443,
+  "webui": "https://[HOST]:[PORT:3000]/",
   "ports_description": {
+    "3000/tcp": "LabTether web console (HTTPS; plain HTTP when tls_mode is disabled)",
     "8080/tcp": "LabTether HTTP redirect/health listener (not published by default)",
-    "8443/tcp": "LabTether HTTPS API (auto/external TLS mode)"
+    "8443/tcp": "LabTether HTTPS API (unless tls_mode is disabled)"
   },
   "ports": {
+    "3000/tcp": 3000,
     "8080/tcp": null,
     "8443/tcp": 8443
   },
@@ -35,7 +39,7 @@
     "labtether_setup_token": "str?",
     "encryption_key": "str?",
     "database_url": "str?",
-    "tls_mode": "list(auto|external|disabled)",
+    "tls_mode": "list(auto|disabled)",
     "auto_generate_credentials": "bool"
   }
 }
