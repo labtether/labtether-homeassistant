@@ -8,9 +8,11 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))
 
+from labtether.api import LabTetherPermissionError
 from labtether.switch import LabTetherPowerSwitch, async_setup_entry
 from labtether.coordinator import LabTetherData
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.core import Context
+from homeassistant.exceptions import HomeAssistantError, Unauthorized
 
 
 def _make_coordinator(assets, metrics=None):
@@ -64,8 +66,8 @@ async def test_turn_on_calls_start_action():
 
 
 @pytest.mark.asyncio
-async def test_turn_off_calls_stop_action():
-    """Turning off should call vm.stop action."""
+async def test_turn_off_asks_proxmox_vm_to_shut_down():
+    """Turning off must not force-stop a Proxmox VM (vm.stop is a force stop)."""
     coord = _make_coordinator([{"id": "vm-1", "name": "TestVM", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}])
     switch = LabTetherPowerSwitch(coord, "vm-1")
     await switch.async_turn_off()
@@ -73,8 +75,58 @@ async def test_turn_off_calls_stop_action():
         asset_id="vm-1",
         action_type="connector_action",
         connector_id="proxmox",
-        action_id="vm.stop",
+        action_id="vm.shutdown",
     )
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(("verb", "action"), [("start", "container.start"), ("stop", "container.stop")])
+async def test_docker_container_from_hub_gets_power_control(verb, action):
+    """The Hub reports Docker containers as docker-container, not container."""
+    asset = {"id": "docker-ct-1", "type": "docker-container", "source": "docker", "status": "running"}
+    coord = _make_coordinator([asset])
+    added = []
+    hass = MagicMock()
+    hass.data = {"labtether": {"entry-1": {"coordinator": coord}}}
+    entry = MagicMock(entry_id="entry-1", options={}, data={})
+    await async_setup_entry(hass, entry, lambda entities: added.extend(entities))
+
+    assert [switch._asset_id for switch in added] == ["docker-ct-1"]
+    await (added[0].async_turn_on() if verb == "start" else added[0].async_turn_off())
+    coord.api.async_run_action.assert_awaited_once_with(
+        asset_id="docker-ct-1", action_type="connector_action", connector_id="docker",
+        action_id=action,
+    )
+
+
+@pytest.mark.asyncio
+async def test_power_control_is_limited_to_administrators():
+    """A non-admin dashboard user must not power assets on or off."""
+    coord = _make_coordinator([{"id": "vm-1", "type": "vm", "source": "proxmox", "status": "online"}])
+    switch = LabTetherPowerSwitch(coord, "vm-1")
+    switch.hass = MagicMock()
+    switch.hass.auth.async_get_user = AsyncMock(return_value=MagicMock(is_admin=False))
+    switch.async_set_context(Context(user_id="user-1"))
+
+    with pytest.raises(Unauthorized):
+        await switch.async_turn_off()
+    coord.api.async_run_action.assert_not_awaited()
+
+    switch.hass.auth.async_get_user.return_value = MagicMock(is_admin=True)
+    await switch.async_turn_off()
+    coord.api.async_run_action.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_missing_action_scope_is_a_readable_error():
+    """A Hub refusal must reach the user as a Home Assistant error, not a traceback."""
+    coord = _make_coordinator([{"id": "vm-1", "type": "vm", "source": "proxmox", "status": "offline"}])
+    coord.api.async_run_action.side_effect = LabTetherPermissionError("refused")
+    switch = LabTetherPowerSwitch(coord, "vm-1")
+
+    with pytest.raises(HomeAssistantError, match="actions:exec"):
+        await switch.async_turn_on()
+    coord.async_request_refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio
@@ -93,7 +145,7 @@ async def test_proxmox_container_uses_lxc_power_action(verb):
 
     coord.api.async_run_action.assert_awaited_once_with(
         asset_id="ct-1", action_type="connector_action", connector_id="proxmox",
-        action_id=f"ct.{verb}",
+        action_id="ct.start" if verb == "start" else "ct.shutdown",
     )
     coord.async_request_refresh.assert_awaited_once()
 

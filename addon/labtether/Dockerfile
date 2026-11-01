@@ -32,8 +32,10 @@ RUN apk add --update-cache --no-cache \
   c-ares=1.34.9-r0 \
   ca-certificates=20261020-r0 \
   jq=1.8.2-r0 \
+  libatomic=15.2.0-r5 \
   libcrypto3=3.5.9-r0 \
   libssl3=3.5.9-r0 \
+  libstdc++=15.2.0-r5 \
   postgresql16=16.15-r0 \
   postgresql16-client=16.15-r0 \
   su-exec=0.3-r0 \
@@ -44,9 +46,23 @@ RUN apk add --update-cache --no-cache \
   && rm /immutable-inputs-verified
 
 COPY --from=hub /usr/local/bin/labtether /usr/local/bin/labtether
+# The web console holds the owner setup screen. Both images use Alpine 3.24, so
+# the Hub image's Node binary runs here with libstdc++ and libatomic added above. Code
+# stays root-owned; the console may write only its Next.js cache.
+COPY --from=hub /usr/local/bin/node /usr/local/bin/node
+COPY --from=hub --chown=root:root /app/console/ /app/console/
+# Agent installers are baked into the Hub release image; the Hub no longer
+# downloads them at runtime.
+COPY --from=hub --chown=root:root /opt/labtether/agents/ /opt/labtether/agents/
 COPY addon/labtether/run.sh /run.sh
 COPY addon/labtether/lib/ /usr/local/lib/labtether-addon/
-RUN chmod +x /run.sh
+COPY addon/labtether/rootfs/ /
+RUN chmod +x /run.sh \
+    /etc/s6-overlay/s6-rc.d/console/run \
+    /etc/s6-overlay/s6-rc.d/console-front/run \
+  && install -d -m 0700 -o labtether -g labtether /app/console/.next/cache \
+  && /usr/local/bin/node --version >/dev/null \
+  && test -f /app/console/server.js
 
 # The entrypoint needs root only to prepare mounted volumes and start the local
 # postgres sidecar. run.sh drops to UID/GID 10001 before it execs the hub.

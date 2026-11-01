@@ -5,9 +5,10 @@ readonly HA_IMAGE="ghcr.io/home-assistant/home-assistant:2026.10.2@sha256:33afb0
 readonly HA_TLS_URL="${LABTETHER_CROSS_HA_TLS_URL:-https://host.docker.internal:18444}"
 readonly HA_TOKEN_FILE="/tmp/labtether-ha-cross-qa-token"
 readonly HA_TLS_VOLUME="ltqa-ha-cross-tls-data"
-readonly HUB_CONTAINER="${LABTETHER_QA_HUB_CONTAINER:?set LABTETHER_QA_HUB_CONTAINER to the candidate hub container}"
 readonly HUB_URL="${LABTETHER_QA_HUB_URL:?set LABTETHER_QA_HUB_URL to the candidate hub HTTPS origin}"
-readonly HUB_TOKEN_PATH="${LABTETHER_QA_HUB_TOKEN_PATH:-/run/labtether/api-token}"
+# A disposable Hub API key with the connectors:write scope, in a file only you
+# can read. The Hub's shared console token file cannot call connector routes.
+readonly HUB_API_KEY_FILE="${LABTETHER_QA_HUB_API_KEY_FILE:?set LABTETHER_QA_HUB_API_KEY_FILE to a file holding a connectors:write Hub API key}"
 readonly HUB_CA_FILE="${LABTETHER_QA_HUB_CA_FILE:-}"
 
 if [[ "${HUB_URL}" != https://* ]]; then
@@ -27,8 +28,12 @@ if [[ ! -f "${HA_TOKEN_FILE}" || -L "${HA_TOKEN_FILE}" ]]; then
   echo "missing protected disposable Home Assistant token: ${HA_TOKEN_FILE}" >&2
   exit 1
 fi
-if ! docker inspect "${HUB_CONTAINER}" >/dev/null 2>&1; then
-  echo "candidate hub container not found: ${HUB_CONTAINER}" >&2
+if [[ ! -f "${HUB_API_KEY_FILE}" || -L "${HUB_API_KEY_FILE}" ]]; then
+  echo "Hub API key must be a regular, non-symlinked file: ${HUB_API_KEY_FILE}" >&2
+  exit 1
+fi
+if [[ -n "$(find "${HUB_API_KEY_FILE}" -perm -004 -o -perm -040)" ]]; then
+  echo "Hub API key file must not be readable by group or others: ${HUB_API_KEY_FILE}" >&2
   exit 1
 fi
 
@@ -78,7 +83,11 @@ if ! hub_identity="$(
   exit 1
 fi
 
-hub_token="$(docker exec "${HUB_CONTAINER}" cat -- "${HUB_TOKEN_PATH}")"
+hub_token="$(tr -d '\r\n' < "${HUB_API_KEY_FILE}")"
+if [[ -z "${hub_token}" ]]; then
+  echo "Hub API key file is empty: ${HUB_API_KEY_FILE}" >&2
+  exit 1
+fi
 ha_token="$(< "${HA_TOKEN_FILE}")"
 
 connector_test() {

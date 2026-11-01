@@ -3,9 +3,9 @@
 All notable changes to the LabTether Home Assistant integration and add-on.
 Add-on-only notes are also in [`addon/labtether/CHANGELOG.md`](addon/labtether/CHANGELOG.md).
 
-## 1.7.0
+## 1.7.1
 
-Changes since 1.2.0.
+Changes since 1.2.0. 1.7.0 was never released.
 
 ### Check before upgrading
 
@@ -18,6 +18,9 @@ Changes since 1.2.0.
   insecure HTTP**.
 - The `labtether.run_action` service is off by default for new setups. Turn it
   on under **Configure** if your automations use it.
+- Power switches now refuse Home Assistant users who are not administrators.
+  Automations still work. Turning a Proxmox switch off now shuts the guest
+  down; use `labtether.run_action` with `vm.stop` or `ct.stop` to force it.
 - Add-on users: see the add-on changelog for the new `/ssl` mount, port and
   credential file locations.
 
@@ -42,6 +45,17 @@ Changes since 1.2.0.
   be whole seconds between 5 and 3600, and duplicate Hub URLs are detected
   after normalising them.
 - Added missing user-facing text for unexpected setup errors.
+- Turning a Proxmox power switch off now asks the VM or LXC container to shut
+  down instead of force-stopping it. Power switches are limited to Home
+  Assistant administrators and automations.
+- Docker containers now get power switches and telemetry sensors. The Hub
+  reports them as `docker-container`.
+- The Hub Status sensor turns off when the Hub stops answering, instead of
+  becoming unavailable.
+- An API key that lacks a scope now gets its own setup error, and a refused
+  power action shows a readable error.
+- Asset churn no longer stops polling for good. New asset IDs are limited per
+  24 hours, and polling resumes as old IDs age out.
 - Added `codeowners` and an issue tracker link to the integration manifest.
 
 ### Add-on
@@ -50,7 +64,7 @@ Changes since 1.2.0.
   read-only, and a one-time setup token creates the owner account.
 - Images are built from digest-pinned inputs and are published only after an
   anonymous pull check succeeds.
-- A release tag must look like `v1.7.0` and match the integration and add-on
+- A release tag must look like `v1.7.1` and match the integration and add-on
   versions before anything is built.
 - The base image and Alpine packages are updated to their current security
   releases, including c-ares 1.34.9 and a CA bundle without the withdrawn

@@ -1,14 +1,17 @@
 # Changelog
 
-## 1.7.0
+## 1.7.1
 
-Runs LabTether Hub 1.7.0.
+Runs LabTether Hub 1.7.1.
 
 Check before upgrading:
 
-- External TLS certificate and key files must live under `/ssl`. The add-on now
-  mounts only `/ssl`, read-only, and no longer mounts Home Assistant's
-  `/config` or `/share` folders.
+- The add-on now mounts only `/ssl`, read-only, and no longer mounts Home
+  Assistant's `/config` or `/share` folders.
+- `tls_mode: external` is removed. The add-on had no way to supply the
+  certificate, so the Hub could not start in that mode. Switch to `auto`.
+- Home Assistant now stops the add-on while it takes a backup, so the bundled
+  database is saved in a consistent state. The Hub is offline during backups.
 - Port `8080` (HTTP redirect and health listener) is no longer published. Use
   `https://<home-assistant-host>:8443`.
 - Generated credentials are now stored in
@@ -16,6 +19,10 @@ Check before upgrading:
 
 Changes:
 
+- The add-on now includes the web console, served over HTTPS on port `3000`
+  with the Hub's own certificate. Earlier builds had no console, so the owner
+  setup screen could not be reached.
+- The add-on now includes the agent installers from the matching Hub release.
 - Added the `labtether_setup_token` option and a one-time setup token for
   creating the owner account in the browser. A used token cannot come back
   after a restart.

@@ -81,7 +81,7 @@ async def test_poll_starts_three_requests_and_returns_only_complete_snapshot():
         api.release["assets"].set()
         await asyncio.sleep(0)
         assert not poll.done()
-        assert coordinator._seen_asset_ids == set()
+        assert coordinator._seen_asset_ids == {}
 
         api.release["metrics"].set()
         api.release["alerts"].set()
@@ -89,7 +89,7 @@ async def test_poll_starts_three_requests_and_returns_only_complete_snapshot():
         assert data.get_asset("new-asset")["id"] == "new-asset"
         assert data.get_metrics("new-asset") == {"cpu_used_percent": 12}
         assert data.firing_alerts_count == 3
-        assert coordinator._seen_asset_ids == {"new-asset"}
+        assert coordinator._seen_asset_ids.keys() == {"new-asset"}
         assert api.finished == set(api.responses)
     finally:
         await _finish(poll, api)
@@ -113,7 +113,7 @@ async def test_request_failure_cleans_siblings_and_keeps_previous_state(
     coordinator = LabTetherCoordinator(MagicMock(), api, "entry-1")
     previous = LabTetherData(assets=[{"id": "previous"}])
     coordinator.data = previous
-    coordinator._seen_asset_ids = {"previous"}
+    coordinator._seen_asset_ids = {"previous": 0.0}
     poll = asyncio.create_task(coordinator._async_update_data())
     try:
         await _wait(api.all_started)
@@ -122,7 +122,7 @@ async def test_request_failure_cleans_siblings_and_keeps_previous_state(
             await asyncio.wait_for(poll, timeout=1)
         assert api.finished == set(api.responses)
         assert coordinator.data is previous
-        assert coordinator._seen_asset_ids == {"previous"}
+        assert coordinator._seen_asset_ids == {"previous": 0.0}
     finally:
         await _finish(poll, api)
 
@@ -144,6 +144,6 @@ async def test_cancelled_poll_waits_for_all_request_cleanup():
         with pytest.raises(asyncio.CancelledError):
             await asyncio.wait_for(poll, timeout=1)
         assert api.finished == set(api.responses)
-        assert coordinator._seen_asset_ids == set()
+        assert coordinator._seen_asset_ids == {}
     finally:
         await _finish(poll, api)

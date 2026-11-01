@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import timedelta
@@ -11,6 +12,7 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
 from .const import (
+    ASSET_IDENTITY_WINDOW_SECONDS,
     DOMAIN,
     DEFAULT_SCAN_INTERVAL,
     MAX_ASSET_IDENTITIES_PER_ENTRY,
@@ -82,7 +84,9 @@ def _build_coordinator_class() -> type:
             )
             self.api = api
             self.entry_id = entry_id
-            self._seen_asset_ids: set[str] = set()
+            # Asset ID -> monotonic time it was last seen, within the window.
+            self._seen_asset_ids: dict[str, float] = {}
+            self._clock = time.monotonic
 
         async def _async_update_data(self) -> LabTetherData:
             """Fetch data from LabTether API."""
@@ -106,12 +110,21 @@ def _build_coordinator_class() -> type:
                     raise ConfigEntryAuthFailed from err
                 raise UpdateFailed(f"Error communicating with LabTether: {err}") from err
 
-            current_asset_ids = {asset["id"] for asset in assets}
-            seen_asset_ids = self._seen_asset_ids | current_asset_ids
+            # Bound how many distinct asset IDs (and so entities) a Hub can
+            # create in a day, without stopping for good under normal churn.
+            now = self._clock()
+            cutoff = now - ASSET_IDENTITY_WINDOW_SECONDS
+            seen_asset_ids = {
+                asset_id: last_seen
+                for asset_id, last_seen in self._seen_asset_ids.items()
+                if last_seen >= cutoff
+            }
+            seen_asset_ids.update(dict.fromkeys((asset["id"] for asset in assets), now))
             if len(seen_asset_ids) > MAX_ASSET_IDENTITIES_PER_ENTRY:
                 raise UpdateFailed(
-                    "LabTether asset identity budget exceeded; reload the integration "
-                    "after confirming the Hub inventory is stable"
+                    "LabTether asset identity budget exceeded: the Hub reported more "
+                    f"than {MAX_ASSET_IDENTITIES_PER_ENTRY} different assets in 24 hours. "
+                    "Updates resume as older assets age out"
                 )
 
             self._seen_asset_ids = seen_asset_ids

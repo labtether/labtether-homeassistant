@@ -255,6 +255,38 @@ async def test_config_flow_surfaces_auth_failures():
     assert retry_defaults[CONF_API_KEY] == ""
 
 
+@pytest.mark.asyncio
+async def test_config_flow_reports_missing_scope_instead_of_connection_failure():
+    """A Hub 403 means the key lacks a scope, not that the URL is wrong."""
+    from labtether.api import LabTetherApiClient, LabTetherPermissionError
+    from labtether.config_flow import LabTetherConfigFlow
+
+    client = LabTetherApiClient(
+        host="https://lab.local:8443", api_key="key", session=MagicMock()
+    )
+    response = MagicMock(status=403)
+    response.__aenter__ = AsyncMock(return_value=response)
+    response.__aexit__ = AsyncMock(return_value=False)
+    client._session.request = MagicMock(return_value=response)
+    with pytest.raises(LabTetherPermissionError) as refused:
+        await client.async_get_assets()
+
+    flow = LabTetherConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries.async_entries.return_value = []
+    with patch("labtether.config_flow.async_get_clientsession", return_value=MagicMock()), \
+         patch("labtether.config_flow.LabTetherApiClient.async_get_setup_preview", new=AsyncMock(side_effect=refused.value)):
+        result = await flow.async_step_user({
+            CONF_HOST: "https://lab.local:8443",
+            CONF_API_KEY: "narrow-token",
+        })
+
+    assert result["errors"]["base"] == "missing_scope"
+    component = Path(__file__).parent.parent / "custom_components" / "labtether"
+    for path in (component / "strings.json", component / "translations" / "en.json"):
+        assert "actions:exec" in json.loads(path.read_text())["config"]["error"]["missing_scope"]
+
+
 def test_review_copy_uses_markdown_list_in_all_english_catalogs():
     """HA collapses plain newlines, so review fields must be real Markdown rows."""
     repo_root = Path(__file__).parent.parent

@@ -53,6 +53,7 @@
     "error": {
       "cannot_connect": "Cannot connect to the LabTether hub. Check the URL, API key, and network path.",
       "invalid_auth": "The LabTether API key was rejected.",
+      "missing_scope": "The LabTether API key works but is missing a scope. Use a key with assets:read, metrics:read and alerts:read, plus actions:exec for power switches.",
       "invalid_ca_certificate": "The CA certificate file must exist inside Home Assistant and contain valid PEM certificates.",
       "invalid_tls_config": "Choose the CA certificate path with HTTPS and keep Ignore TLS certificate errors off.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds.",

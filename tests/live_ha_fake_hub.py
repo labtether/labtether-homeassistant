@@ -28,7 +28,7 @@ ASSETS = [
     {
         "id": "ltqa-docker-container",
         "name": "LTQA Docker Container",
-        "type": "container",
+        "type": "docker-container",
         "source": "docker",
         "status": "stopped",
         "metadata": {"version": "27.5"},

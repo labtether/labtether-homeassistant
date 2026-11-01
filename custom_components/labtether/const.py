@@ -19,6 +19,9 @@ MIN_SCAN_INTERVAL = 5
 MAX_SCAN_INTERVAL = 3600
 MAX_ASSETS_PER_RESPONSE = 2048
 MAX_ASSET_IDENTITIES_PER_ENTRY = 4096
+# Asset IDs count toward the budget above for this long after they were last
+# seen, so normal churn (such as recreated Docker containers) ages out.
+ASSET_IDENTITY_WINDOW_SECONDS = 24 * 60 * 60
 MAX_ASSET_ID_LENGTH = 256
 MAX_ASSET_FIELD_LENGTH = 1024
 DEFAULT_IMPORT_BINARY_SENSORS = True
@@ -32,7 +35,9 @@ DEFAULT_ALLOW_INSECURE_HTTP = False
 # carry destructive parameters and must be initiated through the LabTether UI,
 # where the hub can present action-specific authorization and confirmation.
 RUN_ACTION_ALLOWLIST = {
-    "proxmox": frozenset({"vm.start", "vm.stop", "ct.start", "ct.stop"}),
+    "proxmox": frozenset(
+        {"vm.start", "vm.shutdown", "vm.stop", "ct.start", "ct.shutdown", "ct.stop"}
+    ),
     "truenas": frozenset({"vm.start", "vm.stop"}),
     "docker": frozenset({"container.start", "container.stop"}),
 }
@@ -46,8 +51,9 @@ API_ACTIONS_EXECUTE = "/actions/execute"
 # HA platforms to set up
 PLATFORMS = ["sensor", "binary_sensor", "switch"]
 
-# Asset kinds that support power control (start/stop)
-CONTROLLABLE_KINDS = {"vm", "container"}
+# Asset kinds that support power control (start/stop). The Hub reports Docker
+# containers as "docker-container"; "container" covers Proxmox LXC and older Hubs.
+CONTROLLABLE_KINDS = {"vm", "container", "docker-container"}
 POWER_ACTION_SOURCES = {"proxmox", "truenas", "docker"}
 ACTIVE_ASSET_STATUSES = frozenset({"online", "running", "up", "active", "healthy"})
 
@@ -55,7 +61,14 @@ ACTIVE_ASSET_STATUSES = frozenset({"online", "running", "up", "active", "healthy
 EXCLUDED_SOURCES = frozenset({"home-assistant", "homeassistant"})
 
 # Asset kinds that typically have telemetry
-TELEMETRY_KINDS = {"host", "hypervisor-node", "vm", "container", "container-host"}
+TELEMETRY_KINDS = {
+    "host",
+    "hypervisor-node",
+    "vm",
+    "container",
+    "docker-container",
+    "container-host",
+}
 
 
 def entry_pref(entry, key: str, default):

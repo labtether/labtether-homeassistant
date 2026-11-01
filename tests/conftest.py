@@ -20,6 +20,9 @@ def _create_mock_module(name: str) -> ModuleType:
 # Mock homeassistant and all its submodules before any imports
 _HA_MODULES = [
     "homeassistant",
+    "homeassistant.auth",
+    "homeassistant.auth.permissions",
+    "homeassistant.auth.permissions.const",
     "homeassistant.config_entries",
     "homeassistant.core",
     "homeassistant.const",
@@ -45,6 +48,9 @@ for mod_name in _HA_MODULES:
 # Wire parent-child module relationships so `from homeassistant import X` works
 # (MagicMock.__getattr__ would otherwise return a new mock instead of sys.modules child)
 _ha = sys.modules["homeassistant"]
+_ha.auth = sys.modules["homeassistant.auth"]
+_ha.auth.permissions = sys.modules["homeassistant.auth.permissions"]
+_ha.auth.permissions.const = sys.modules["homeassistant.auth.permissions.const"]
 _ha.config_entries = sys.modules["homeassistant.config_entries"]
 _ha.core = sys.modules["homeassistant.core"]
 _ha.const = sys.modules["homeassistant.const"]
@@ -67,6 +73,7 @@ _ha_components.switch = sys.modules["homeassistant.components.switch"]
 # Set specific values that our code actually uses
 ha_const = sys.modules["homeassistant.const"]
 ha_const.PERCENTAGE = "%"
+sys.modules["homeassistant.auth.permissions.const"].POLICY_CONTROL = "control"
 
 # Make ConfigFlow usable as a base class
 ha_config_entries = sys.modules["homeassistant.config_entries"]
@@ -143,8 +150,16 @@ ha_coordinator = sys.modules["homeassistant.helpers.update_coordinator"]
 
 
 class _CoordinatorEntity:
+    # Entity attributes HA sets when it adds an entity or calls a service on it.
+    hass = None
+    entity_id = None
+    _context = None
+
     def __init__(self, coordinator, **kw):
         self.coordinator = coordinator
+
+    def async_set_context(self, context):
+        self._context = context
 
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
@@ -192,6 +207,17 @@ ha_exceptions = sys.modules["homeassistant.exceptions"]
 ha_exceptions.ConfigEntryAuthFailed = type("ConfigEntryAuthFailed", (Exception,), {})
 ha_exceptions.HomeAssistantError = type("HomeAssistantError", (Exception,), {})
 
+
+class _Unauthorized(ha_exceptions.HomeAssistantError):
+    def __init__(self, context=None, user_id=None, entity_id=None, config_entry_id=None,
+                 perm_category=None, permission=None):
+        super().__init__("Unauthorized")
+        self.context = context
+        self.permission = permission
+
+
+ha_exceptions.Unauthorized = _Unauthorized
+
 ha_cv = sys.modules["homeassistant.helpers.config_validation"]
 ha_cv.string = str
 
@@ -200,6 +226,16 @@ ha_aiohttp_client.async_get_clientsession = lambda hass: MagicMock()
 
 ha_core = sys.modules["homeassistant.core"]
 ha_core.callback = lambda func: func
+
+
+class _Context:
+    def __init__(self, user_id=None, parent_id=None, id=None):
+        self.user_id = user_id
+        self.parent_id = parent_id
+        self.id = id
+
+
+ha_core.Context = _Context
 
 # Add custom_components to the path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent / "custom_components"))

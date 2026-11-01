@@ -81,8 +81,8 @@ def test_labtether_data_get_metrics():
 
 
 @pytest.mark.asyncio
-async def test_coordinator_rejects_asset_identity_churn(monkeypatch):
-    """Fresh IDs across bounded polls must have one shared lifetime ceiling."""
+async def test_coordinator_limits_asset_identity_churn_and_recovers(monkeypatch):
+    """Fresh IDs share a 24-hour ceiling; polling resumes once old IDs age out."""
     monkeypatch.setattr(coordinator_module, "MAX_ASSET_IDENTITIES_PER_ENTRY", 2)
     api = MagicMock()
     api.async_get_assets = AsyncMock(
@@ -90,15 +90,24 @@ async def test_coordinator_rejects_asset_identity_churn(monkeypatch):
             [{"id": "asset-1"}],
             [{"id": "asset-2"}],
             [{"id": "asset-3"}],
+            [{"id": "asset-3"}],
         ]
     )
     api.async_get_metrics_overview = AsyncMock(return_value={})
     api.async_get_firing_alerts_count = AsyncMock(return_value=0)
     coordinator = LabTetherCoordinator(MagicMock(), api, "entry-1")
+    now = 1000.0
+    coordinator._clock = lambda: now
 
     await coordinator._async_update_data()
+    now += 60
     await coordinator._async_update_data()
     with pytest.raises(Exception, match="asset identity budget exceeded"):
         await coordinator._async_update_data()
+    assert coordinator._seen_asset_ids.keys() == {"asset-1", "asset-2"}
 
-    assert coordinator._seen_asset_ids == {"asset-1", "asset-2"}
+    # Recreated containers get new IDs; the old ones must not block polling forever.
+    now += coordinator_module.ASSET_IDENTITY_WINDOW_SECONDS + 1
+    data = await coordinator._async_update_data()
+    assert data.get_asset("asset-3") is not None
+    assert coordinator._seen_asset_ids.keys() == {"asset-3"}
