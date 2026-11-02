@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 
+from homeassistant import config_entries as ha_config_entries
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, ServiceCall, callback
 from homeassistant.helpers import config_validation as cv, device_registry as dr, entity_registry as er
@@ -81,10 +82,10 @@ def _build_client(hass: HomeAssistant, entry: ConfigEntry, ssl_context=None) -> 
     )
 
 
-def _ensure_hub_device(hass: HomeAssistant, entry: ConfigEntry, client: LabTetherApiClient) -> None:
+def _ensure_hub_device(hass: HomeAssistant, entry: ConfigEntry, client: LabTetherApiClient):
     """Ensure the hub device exists even if hub entities are disabled."""
     device_registry = dr.async_get(hass)
-    device_registry.async_get_or_create(
+    return device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, hub_registry_key(entry.entry_id))},
         name="LabTether Hub",
@@ -339,6 +340,15 @@ async def _async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+def _needs_update_listener() -> bool:
+    """Return whether this Home Assistant lacks OptionsFlowWithReload (2025.8).
+
+    Newer versions reload after options, reauth and reconfigure on their own; an
+    update listener on top makes them reload twice and log a warning.
+    """
+    return not hasattr(ha_config_entries, "OptionsFlowWithReload")
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up LabTether from a config entry."""
     try:
@@ -348,13 +358,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except HubCACertificateError as err:
         raise ConfigEntryNotReady("LabTether CA certificate is unavailable") from err
     client = _build_client(hass, entry, ssl_context)
-    _ensure_hub_device(hass, entry, client)
+    hub_device = _ensure_hub_device(hass, entry, client)
     coordinator = LabTetherCoordinator(
         hass,
         client,
         entry.entry_id,
         scan_interval_seconds=scan_interval_or_default(entry_pref(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
     )
+    coordinator.hub_device_id = getattr(hub_device, "id", None)
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
     _reconcile_registry_entries(hass, entry, coordinator)
@@ -366,7 +377,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         "client": client,
         "entry": entry,
     }
-    entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
+    if _needs_update_listener():
+        entry.async_on_unload(entry.add_update_listener(_async_reload_entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 

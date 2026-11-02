@@ -11,6 +11,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .const import DOMAIN, asset_registry_key, hub_registry_key
 from .coordinator import LabTetherCoordinator
 
+# DeviceInfo lists its keys like a TypedDict, also after it became a dataclass.
+_LINK_BY_DEVICE_ID = "via_device_id" in getattr(DeviceInfo, "__optional_keys__", ())
+
 
 class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
     """Base class for LabTether entities."""
@@ -55,9 +58,14 @@ class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
                 else None
             ),
         )
-        # Link non-hub assets to the hub device
+        # Link non-hub assets to the hub device. Home Assistant 2026.8 and newer
+        # take the hub's registry id; `via_device` stops working in 2027.8.
         if asset.get("type") != "hub":
-            info["via_device"] = (DOMAIN, hub_registry_key(entry_id))
+            hub_device_id = getattr(self.coordinator, "hub_device_id", None)
+            if _LINK_BY_DEVICE_ID and isinstance(hub_device_id, str) and hub_device_id:
+                info["via_device_id"] = hub_device_id
+            else:
+                info["via_device"] = (DOMAIN, hub_registry_key(entry_id))
         return info
 
 

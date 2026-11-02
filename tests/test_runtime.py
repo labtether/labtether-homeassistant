@@ -444,3 +444,41 @@ async def test_setup_entry_defaults_malformed_stored_scan_interval():
 
     assert result is True
     assert integration.LabTetherCoordinator.call_args.kwargs["scan_interval_seconds"] == DEFAULT_SCAN_INTERVAL
+
+
+@pytest.mark.asyncio
+async def test_setup_entry_update_listener_matches_options_flow_reload(monkeypatch):
+    """Home Assistant refuses to save options from a reloading options flow when
+    the entry also has an update listener, and reloads twice after reauth or
+    reconfigure. Only versions without OptionsFlowWithReload get the listener."""
+    from homeassistant import config_entries as ha_config_entries
+    from labtether.config_flow import LabTetherOptionsFlow
+
+    def make_entry():
+        entry = MagicMock()
+        entry.entry_id = "entry-1"
+        entry.data = {"host": "https://lab.local:8443", "api_key": "token"}
+        entry.options = {}
+        entry.add_update_listener = MagicMock(return_value=lambda: None)
+        return entry
+
+    hass = MagicMock()
+    hass.data = {}
+    hass.services.has_service.return_value = False
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+    coordinator = MagicMock()
+    coordinator.async_config_entry_first_refresh = AsyncMock()
+    integration.dr.async_get = MagicMock(return_value=MagicMock())
+    integration._build_client = MagicMock(return_value=MagicMock(host="https://lab.local:8443"))
+    integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
+
+    assert issubclass(LabTetherOptionsFlow, ha_config_entries.OptionsFlowWithReload)
+    entry = make_entry()
+    assert await integration.async_setup_entry(hass, entry) is True
+    entry.add_update_listener.assert_not_called()
+
+    monkeypatch.delattr(ha_config_entries, "OptionsFlowWithReload")
+    hass.data = {}
+    entry = make_entry()
+    assert await integration.async_setup_entry(hass, entry) is True
+    entry.add_update_listener.assert_called_once()

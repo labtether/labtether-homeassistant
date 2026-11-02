@@ -53,3 +53,24 @@ def test_multi_entry_device_identifiers_are_namespaced():
     assert device_info_a["identifiers"] != device_info_b["identifiers"]
     assert device_info_a["via_device"] != device_info_b["via_device"]
     assert hub_info_a["identifiers"] != hub_info_b["identifiers"]
+
+
+def test_asset_device_links_to_hub_by_registry_id(monkeypatch):
+    """Home Assistant 2026.8+ links devices by the hub's registry id; the old
+    `via_device` identifier stops working in 2027.8 and devices would lose
+    their hub link."""
+    import labtether.entity as entity_module
+
+    assets = [{"id": "vm-100", "name": "VM 100", "type": "vm", "source": "proxmox", "status": "online", "metadata": {}}]
+    coord = _make_coordinator("entry-a", assets)
+    coord.hub_device_id = "hub-device-registry-id"
+
+    monkeypatch.setattr(entity_module, "_LINK_BY_DEVICE_ID", True)
+    info = LabTetherAssetStatusSensor(coord, "vm-100").device_info
+    assert info["via_device_id"] == "hub-device-registry-id"
+    assert "via_device" not in info
+
+    monkeypatch.setattr(entity_module, "_LINK_BY_DEVICE_ID", False)
+    info = LabTetherAssetStatusSensor(coord, "vm-100").device_info
+    assert info["via_device"] == ("labtether", "entry-a:hub")
+    assert "via_device_id" not in info
