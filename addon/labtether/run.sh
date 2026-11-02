@@ -387,6 +387,7 @@ SETUP_TOKEN_OPT="$(read_option_string "labtether_setup_token")"
 ENCRYPTION_KEY_OPT="$(read_option_string "encryption_key")"
 DATABASE_URL_OPT="$(read_option_string "database_url")"
 TLS_MODE_OPT="$(read_option_string "tls_mode")"
+EXTERNAL_URL_OPT="$(read_option_string "external_url")"
 
 GENERATED_KEYS=()
 
@@ -502,6 +503,17 @@ export API_PORT=8080
 export LABTETHER_HTTP_PORT=8080
 export LABTETHER_HTTPS_PORT=8443
 export LABTETHER_TLS_MODE="${TLS_MODE_OPT}"
+# The address other machines use to reach the Hub. The Hub names its host in
+# the certificate and offers it in Add device. Without it the certificate names
+# only the add-on's own container addresses.
+external_url_pattern='^https://[]A-Za-z0-9.:[-]+/?$'
+if [[ -n "${EXTERNAL_URL_OPT}" ]]; then
+  if [[ "${EXTERNAL_URL_OPT}" =~ ${external_url_pattern} ]]; then
+    export LABTETHER_EXTERNAL_URL="${EXTERNAL_URL_OPT%/}"
+  else
+    log "external_url ignored: use https://host or https://host:port with no path"
+  fi
+fi
 export LABTETHER_DATA_DIR=/data
 export LABTETHER_AGENT_CACHE_DIR="${HUB_AGENT_CACHE_DIR}"
 export LABTETHER_AGENT_DIR=/opt/labtether/agents

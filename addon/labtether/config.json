@@ -31,6 +31,7 @@
     "encryption_key": "",
     "database_url": "",
     "tls_mode": "auto",
+    "external_url": "",
     "auto_generate_credentials": true
   },
   "schema": {
@@ -40,6 +41,7 @@
     "encryption_key": "str?",
     "database_url": "str?",
     "tls_mode": "list(auto|disabled)",
+    "external_url": "str?",
     "auto_generate_credentials": "bool"
   }
 }

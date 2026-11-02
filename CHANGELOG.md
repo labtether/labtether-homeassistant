@@ -18,8 +18,10 @@ Released with LabTether Hub 2.0.0.
 
 ### Add-on
 
-- Runs LabTether Hub 2.0.0 with the new 2.0 web console. Options and ports
-  are unchanged.
+- Runs LabTether Hub 2.0.0 with the new 2.0 web console. Ports are unchanged.
+- New `external_url` option. The Hub adds its host to its certificate and
+  offers it in **Add device**, so agents and browsers on other machines can
+  check the Hub's certificate at the Home Assistant host's address.
 - A used setup token with no owner account in the database, for example after
   `database_url` points at a new empty database, no longer leaves the Hub
   stopped. The add-on issues a new setup token at start.
