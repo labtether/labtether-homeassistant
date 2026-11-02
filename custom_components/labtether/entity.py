@@ -15,6 +15,18 @@ from .coordinator import LabTetherCoordinator
 _LINK_BY_DEVICE_ID = "via_device_id" in getattr(DeviceInfo, "__optional_keys__", ())
 
 
+def _software_version(asset: Mapping[str, Any]) -> str | None:
+    """Hub agents report `agent_version`; `version` is the older key."""
+    metadata = asset.get("metadata")
+    if not isinstance(metadata, Mapping):
+        return None
+    for key in ("agent_version", "version"):
+        value = metadata.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return None
+
+
 class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
     """Base class for LabTether entities."""
 
@@ -52,11 +64,7 @@ class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
             name=str(asset.get("name", self._asset_id)),
             manufacturer="LabTether",
             model=str(asset.get("type", "unknown")),
-            sw_version=(
-                str(asset.get("metadata", {}).get("version"))
-                if asset.get("metadata", {}).get("version") is not None
-                else None
-            ),
+            sw_version=_software_version(asset),
         )
         # Link non-hub assets to the hub device. Home Assistant 2026.8 and newer
         # take the hub's registry id; `via_device` stops working in 2027.8.

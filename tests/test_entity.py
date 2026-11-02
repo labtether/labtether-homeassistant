@@ -74,3 +74,18 @@ def test_asset_device_links_to_hub_by_registry_id(monkeypatch):
     info = LabTetherAssetStatusSensor(coord, "vm-100").device_info
     assert info["via_device"] == ("labtether", "entry-a:hub")
     assert "via_device_id" not in info
+
+
+def test_asset_device_shows_agent_version():
+    """Hub agents report `metadata.agent_version`; without it every agent
+    device in Home Assistant showed no software version."""
+    assets = [
+        {"id": "srv-1", "name": "nas01", "type": "host", "status": "online",
+         "metadata": {"agent_version": "v2.0.0", "version": "old"}},
+        {"id": "pve-1", "name": "pve01", "type": "hypervisor", "status": "online",
+         "metadata": {"version": "8.4.1"}},
+    ]
+    coord = _make_coordinator("entry-a", assets)
+
+    assert LabTetherAssetStatusSensor(coord, "srv-1").device_info["sw_version"] == "v2.0.0"
+    assert LabTetherAssetStatusSensor(coord, "pve-1").device_info["sw_version"] == "8.4.1"
