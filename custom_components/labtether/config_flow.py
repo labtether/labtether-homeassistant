@@ -443,7 +443,14 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return LabTetherOptionsFlow()
 
 
-class LabTetherOptionsFlow(config_entries.OptionsFlow):
+# Home Assistant 2025.8 and newer reload the entry after an options change.
+# Older versions rely on the update listener added in async_setup_entry.
+_OptionsFlowBase = getattr(
+    config_entries, "OptionsFlowWithReload", config_entries.OptionsFlow
+)
+
+
+class LabTetherOptionsFlow(_OptionsFlowBase):
     """Handle LabTether integration options."""
 
     async def async_step_init(self, user_input=None):

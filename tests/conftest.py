@@ -143,6 +143,8 @@ class _ConfigFlow:
 
 ha_config_entries.ConfigFlow = _ConfigFlow
 ha_config_entries.OptionsFlow = _ConfigFlow
+# Home Assistant 2025.8+ options flows reload the entry themselves.
+ha_config_entries.OptionsFlowWithReload = _ConfigFlow
 ha_config_entries.ConfigEntry = MagicMock
 
 # Make CoordinatorEntity usable as a base class (must support Generic[] subscript)
