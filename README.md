@@ -138,7 +138,8 @@ This repository also has a Home Assistant add-on that runs the LabTether hub
 itself. For a homelab you rely on, Docker Compose is still the recommended way
 to run the hub.
 
-In **Settings > Add-ons > Add-on Store**, add
+In **Settings > Apps > App store** (**Settings > Add-ons > Add-on Store**
+before Home Assistant 2026.2), add
 `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-repo`.
 The first-run setup token and database options are in
 [`addon/labtether/DOCS.md`](addon/labtether/DOCS.md). The add-on runs the hub
