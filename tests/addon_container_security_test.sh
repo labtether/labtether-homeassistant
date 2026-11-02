@@ -11,6 +11,7 @@ readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
 readonly DATA_VOLUME="labtether-ha-addon-security-data-$$-${RANDOM}"
 readonly ENV_TEST_ORIGIN="https://ltqa-env.invalid:8443"
+readonly OPTION_TEST_HOST="ltqa-option.invalid"
 OWNER_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
 readonly OWNER_TOKEN
 SETUP_TOKEN="$(od -An -tx1 -N32 /dev/urandom | tr -d ' \n')"
@@ -337,6 +338,13 @@ docker exec \
       printf "%s\n" "touch /data/root-env-pwned 2>/dev/null || true"
     } > /data/labtether-addon/runtime.env
   '
+# A Supervisor user sets the Hub's address with the external_url option. The
+# restarted Hub must offer it and name its host in the certificate, or agents
+# and browsers on other machines refuse the Hub at that address.
+docker exec "${CONTAINER_NAME}" sh -c '
+  jq --arg url "https://$1:8443" ".external_url = \$url" /data/options.json > /data/options.next
+  chmod 600 /data/options.next && mv /data/options.next /data/options.json
+' sh "${OPTION_TEST_HOST}"
 docker rm -f "${CONTAINER_NAME}" >/dev/null
 docker run --detach \
   --name "${CONTAINER_NAME}" \
@@ -376,6 +384,24 @@ docker exec "${CONTAINER_NAME}" jq -e '
 ' /data/labtether-addon-root/runtime.json >/dev/null
 if ! docker exec "${CONTAINER_NAME}" pg_isready -h 127.0.0.1 -p 5432 -U labtether >/dev/null; then
   echo "bundled Postgres did not restart with persisted local database state" >&2
+  exit 1
+fi
+external_url_ok="false"
+for _ in $(seq 1 30); do
+  if docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+    bash -se -o pipefail -- "${OPTION_TEST_HOST}" <<'SH'
+curl --disable --silent --fail --max-time 5 --noproxy '*' --max-redirs 0 \
+  --cacert /ca/ca.crt --resolve "$1:8443:127.0.0.1" "https://$1:8443/api/v1/discover" \
+  | jq --exit-status --arg expected "https://$1:8443" '.hub_url == $expected' >/dev/null
+SH
+  then
+    external_url_ok="true"
+    break
+  fi
+  sleep 1
+done
+if [[ "${external_url_ok}" != "true" ]]; then
+  echo "hub did not offer the external_url option or name it in its certificate" >&2
   exit 1
 fi
 

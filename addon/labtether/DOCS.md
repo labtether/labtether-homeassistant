@@ -12,13 +12,21 @@ Open the web console at `https://<home-assistant-host>:3000`, or use
 on the one-time owner setup screen with the setup token described below.
 
 The console uses the Hub's own certificate, the same one served on port 8443.
-Until you trust the Hub's certificate authority, the browser shows a
-certificate warning. Sign-in needs HTTPS, so keep the default `tls_mode`
+That certificate names the add-on's own container addresses, plus the host in
+`external_url` when you set it. Set `external_url` to the address you open the
+console with, then trust the Hub's certificate authority (download it from
+`https://<home-assistant-host>:8443/api/v1/ca.crt`). Until both are done, the
+browser shows a certificate warning. Sign-in needs HTTPS, so keep the default `tls_mode`
 unless you put your own HTTPS proxy in front of port 3000. That proxy must send
 `X-Forwarded-Proto` and the browser's `Host` (or `X-Forwarded-Host`).
 
 The add-on includes the agent installers from the matching Hub release, so you
-can add devices from the console.
+can add devices from the console. Agents on other machines check the Hub's
+certificate against the address they connect to, so set `external_url` before
+you add devices.
+
+For the LabTether integration on the same Home Assistant, use the same
+`external_url` as the hub URL and the CA file as the CA path.
 
 ## Configuration
 
@@ -33,6 +41,12 @@ can add devices from the console.
   - `disabled`: the Hub serves plain HTTP on port 8080 only, and the console
     plain HTTP on port 3000, for use behind your own HTTPS proxy. Port 8080 is
     not published by default; map it under **Network**.
+- `external_url`: the address other machines use to reach the Hub, for
+  example `https://192.168.1.20:8443` or `https://homeassistant.local:8443`
+  (`https://`, a host and an optional port, no path). The Hub adds that host to
+  its certificate and offers this address in **Add device**. Leave it blank and
+  browsers and agents on other machines refuse the Hub's certificate, even
+  after you trust its certificate authority.
 - `auto_generate_credentials`: when enabled, missing required service credentials and first-run setup token are generated securely.
 
 ## Generated Credentials
