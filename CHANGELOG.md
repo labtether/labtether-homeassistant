@@ -3,6 +3,28 @@
 All notable changes to the LabTether Home Assistant integration and add-on.
 Add-on-only notes are also in [`addon/labtether/CHANGELOG.md`](addon/labtether/CHANGELOG.md).
 
+## 2.0.0
+
+Released with LabTether Hub 2.0.0.
+
+### Integration
+
+- No change in behavior. The integration uses the same Hub API with Hub 2.0.0
+  as with 1.7.1. Its version now matches the Hub release.
+
+### Add-on
+
+- Runs LabTether Hub 2.0.0 with the new 2.0 web console. Options and ports
+  are unchanged.
+- A used setup token with no owner account in the database, for example after
+  `database_url` points at a new empty database, no longer leaves the Hub
+  stopped. The add-on issues a new setup token at start.
+
+### Project
+
+- The add-on container check can run against a candidate Hub image, pinned by
+  digest, before that Hub is released.
+
 ## 1.7.1
 
 Changes since 1.2.0. 1.7.0 was never released.

@@ -48,6 +48,11 @@ after successful owner creation and is never persisted in root-consumed state. A
 configured token is staged only once; restarting the add-on cannot resurrect a
 previously consumed token.
 
+If the token was used but the database has no owner account, for example after
+you point `database_url` at a new empty database, the add-on issues a new setup
+token when it starts. With `auto_generate_credentials` turned off, set a new
+`labtether_setup_token` option instead.
+
 Secret values are never printed in add-on logs. If you cannot read the setup
 token file locally, configure a known strong `labtether_setup_token` option
 before first start and remove or rotate the option after owner setup.

@@ -1,5 +1,19 @@
 # Changelog
 
+## 2.0.0
+
+Runs LabTether Hub 2.0.0, which has the new 2.0 web console. Add-on options and
+ports are unchanged from 1.7.1.
+
+Changes:
+
+- When the setup token was already used but the database has no owner account,
+  for example after `database_url` points at a new empty database, the add-on
+  now issues a new setup token at start. Before, the Hub stopped at start and
+  the add-on restarted in a loop. With `auto_generate_credentials` turned off,
+  the add-on stops at start and its log says to set a new
+  `labtether_setup_token` option.
+
 ## 1.7.1
 
 Runs LabTether Hub 1.7.1.

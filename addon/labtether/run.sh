@@ -281,6 +281,24 @@ validate_setup_token() {
   fi
 }
 
+# Succeeds only when the database answers and holds no Hub user. A database the
+# Hub has not set up yet has no users table. Any other answer, including a
+# connection error, leaves the setup-token state unchanged.
+database_has_no_owner() {
+  local answer
+  local psql_args=(--no-psqlrc --no-password --tuples-only --no-align --dbname="${DATABASE_URL}")
+
+  answer="$(PGCONNECT_TIMEOUT=10 psql "${psql_args[@]}" \
+    --command="SELECT to_regclass('users') IS NULL" 2>/dev/null)" || return 1
+  if [[ "${answer}" == "t" ]]; then
+    return 0
+  fi
+  [[ "${answer}" == "f" ]] || return 1
+  answer="$(PGCONNECT_TIMEOUT=10 psql "${psql_args[@]}" \
+    --command="SELECT NOT EXISTS (SELECT 1 FROM users)" 2>/dev/null)" || return 1
+  [[ "${answer}" == "t" ]]
+}
+
 start_local_postgres() {
   local pgdata="/data/postgres"
 
@@ -380,6 +398,7 @@ require_or_generate "LABTETHER_ENCRYPTION_KEY" "${ENCRYPTION_KEY_OPT}" "${LABTET
 LABTETHER_ADMIN_PASSWORD="${ADMIN_PASSWORD_OPT:-${PROCESS_ADMIN_PASSWORD}}"
 
 SETUP_TOKEN_GENERATED="false"
+SETUP_TOKEN_CONSUMED="false"
 if [[ -n "${LABTETHER_ADMIN_PASSWORD}" ]]; then
   # A configured password bootstraps the owner directly, so a dormant setup
   # token would only add secret material without enabling a useful flow.
@@ -422,6 +441,7 @@ else
     if [[ -z "${SETUP_TOKEN_ISSUED_MARKER}" ]]; then
       write_secret_file "${SETUP_TOKEN_ISSUED_MARKER_FILE}" "${SETUP_TOKEN_OPTION_MARKER}"
     fi
+    SETUP_TOKEN_CONSUMED="true"
     log "first-run setup token was previously issued and is no longer pending"
   else
     if [[ "${AUTO_GENERATE}" != "true" ]]; then
@@ -457,6 +477,20 @@ if [[ -z "${DATABASE_URL_OPT}" && -z "${PROCESS_DATABASE_URL}" ]] \
 fi
 if [[ -z "${DATABASE_URL}" ]]; then
   fail "database_url resolved to an empty value"
+fi
+
+# The Hub cannot start without an owner account or a setup token. A used token
+# with no owner happens when database_url points at a new empty database.
+if [[ "${SETUP_TOKEN_CONSUMED}" == "true" ]] && database_has_no_owner; then
+  if [[ "${AUTO_GENERATE}" != "true" ]]; then
+    fail "the database has no owner account; set a new labtether_setup_token option"
+  fi
+  LABTETHER_SETUP_TOKEN="$(generate_hex_token)"
+  write_secret_file "${SETUP_TOKEN_FILE}" "${LABTETHER_SETUP_TOKEN}"
+  write_secret_file "${SETUP_TOKEN_ISSUED_MARKER_FILE}" \
+    "$(printf '%s' "${LABTETHER_SETUP_TOKEN}" | sha256sum | awk '{print $1}')"
+  SETUP_TOKEN_GENERATED="true"
+  log "the database has no owner account, so a new setup token was issued"
 fi
 
 if [[ -z "${TLS_MODE_OPT}" ]]; then
