@@ -1,8 +1,9 @@
 # LabTether Home Assistant Add-on
 
 Add `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-repo`
-under **Settings > Add-ons > Add-on Store**. The branch suffix selects the
-published add-on repository layout.
+under **Settings > Apps > App store** (**Settings > Add-ons > Add-on Store**
+before Home Assistant 2026.2). The branch suffix selects the published add-on
+repository layout.
 
 ## Web console
 
