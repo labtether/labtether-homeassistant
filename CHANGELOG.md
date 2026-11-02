@@ -9,8 +9,12 @@ Released with LabTether Hub 2.0.0.
 
 ### Integration
 
-- No change in behavior. The integration uses the same Hub API with Hub 2.0.0
-  as with 1.7.1. Its version now matches the Hub release.
+- The integration uses the same Hub API with Hub 2.0.0 as with 1.7.1. Its
+  version now matches the Hub release.
+- Home Assistant 2026.11 no longer logs warnings about the integration.
+  Reconfigure and reauthentication reload the entry once instead of twice, and
+  devices link to the hub device by its registry id on Home Assistant 2026.8
+  and newer. The old link stops working in Home Assistant 2027.8.
 
 ### Add-on
 
