@@ -3,7 +3,9 @@ set -Eeuo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly REPO_ROOT
-readonly HUB_IMAGE="ghcr.io/labtether/labtether:v1.7.1@sha256:1768b00578f0e6a35d453cd6eab38ac6578d13c02605e0901a8c277b8edd81b2"
+# ADDON_TEST_HUB_IMAGE tests the add-on against a candidate Hub image before
+# that Hub is released. It must be pinned by digest, like the default.
+readonly HUB_IMAGE="${ADDON_TEST_HUB_IMAGE:-ghcr.io/labtether/labtether:v1.7.1@sha256:1768b00578f0e6a35d453cd6eab38ac6578d13c02605e0901a8c277b8edd81b2}"
 readonly ALPINE_IMAGE="alpine:3.24@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a"
 readonly IMAGE_TAG="labtether-ha-addon-security-test:$$-${RANDOM}"
 readonly CONTAINER_NAME="labtether-ha-addon-security-$$-${RANDOM}"
@@ -55,6 +57,60 @@ assert_mutable_reference_rejected() {
   fi
 }
 
+# Print the hub PID once the add-on has started it, or stop the test.
+wait_for_hub_pid() {
+  local label="$1"
+  local pid=""
+  for _ in $(seq 1 90); do
+    pid="$(docker exec "${CONTAINER_NAME}" pidof labtether 2>/dev/null || true)"
+    if [[ -n "${pid}" ]]; then
+      printf '%s\n' "${pid}"
+      return 0
+    fi
+    if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_NAME}")" != "true" ]]; then
+      echo "add-on container stopped before the hub started (${label})" >&2
+      docker logs "${CONTAINER_NAME}" >&2
+      exit 1
+    fi
+    sleep 1
+  done
+  echo "hub process did not start (${label})" >&2
+  docker logs "${CONTAINER_NAME}" >&2
+  exit 1
+}
+
+# The owner setup screen is part of the web console. It must answer over HTTPS
+# on its published port and reach the Hub through its own certificate check.
+wait_for_console() {
+  for _ in $(seq 1 60); do
+    if docker exec "${CONTAINER_NAME}" sh -c "curl --disable --insecure --silent --fail --max-time 5 \
+      --noproxy '*' https://127.0.0.1:3000/api/auth/bootstrap/status | jq -e 'type == \"object\"'" \
+      >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 1
+  done
+  echo "web console did not answer over HTTPS on port 3000" >&2
+  docker logs "${CONTAINER_NAME}" >&2
+  exit 1
+}
+
+# Finish first-run setup through the console, as the owner would, and print
+# the HTTP status. The hub creates the first user and removes the token itself.
+console_first_run_setup() {
+  docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+    bash -se -o pipefail <<'SH'
+password="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
+jq -n --rawfile token /data/labtether-addon/setup-token --arg password "${password}" \
+  '{username: "ltqa-owner", password: $password, setup_token: $token}' \
+  | curl --disable --insecure --silent --max-time 15 --noproxy '*' \
+    --output /dev/null --write-out '%{http_code}' \
+    --header 'Content-Type: application/json' \
+    --header 'Origin: https://127.0.0.1:3000' \
+    --data @- https://127.0.0.1:3000/api/auth/bootstrap
+SH
+}
+
 assert_mutable_reference_rejected "${mutable_build_from}" "${HUB_IMAGE}"
 assert_mutable_reference_rejected "${build_from}" "ghcr.io/labtether/labtether:latest"
 if docker build \
@@ -98,24 +154,7 @@ docker run --detach \
   --volume "${DATA_VOLUME}:/data" \
   "${IMAGE_TAG}" >/dev/null
 
-hub_pid=""
-for _ in $(seq 1 90); do
-  hub_pid="$(docker exec "${CONTAINER_NAME}" pidof labtether 2>/dev/null || true)"
-  if [[ -n "${hub_pid}" ]]; then
-    break
-  fi
-  if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_NAME}")" != "true" ]]; then
-    echo "add-on container stopped before the hub started" >&2
-    docker logs "${CONTAINER_NAME}" >&2
-    exit 1
-  fi
-  sleep 1
-done
-if [[ -z "${hub_pid}" ]]; then
-  echo "hub process did not start" >&2
-  docker logs "${CONTAINER_NAME}" >&2
-  exit 1
-fi
+hub_pid="$(wait_for_hub_pid "first start")"
 
 hub_uid="$(docker exec "${CONTAINER_NAME}" awk '/^Uid:/ { print $2; exit }' "/proc/${hub_pid}/status")"
 if [[ -z "${hub_uid}" || "${hub_uid}" == "0" ]]; then
@@ -159,23 +198,7 @@ then
   exit 1
 fi
 
-# The owner setup screen is part of the web console. It must answer over HTTPS
-# on its published port and reach the Hub through its own certificate check.
-console_ready="false"
-for _ in $(seq 1 60); do
-  if docker exec "${CONTAINER_NAME}" sh -c "curl --disable --insecure --silent --fail --max-time 5 \
-    --noproxy '*' https://127.0.0.1:3000/api/auth/bootstrap/status | jq -e 'type == \"object\"'" \
-    >/dev/null 2>&1; then
-    console_ready="true"
-    break
-  fi
-  sleep 1
-done
-if [[ "${console_ready}" != "true" ]]; then
-  echo "web console did not answer over HTTPS on port 3000" >&2
-  docker logs "${CONTAINER_NAME}" >&2
-  exit 1
-fi
+wait_for_console
 
 # A sign-in from the console's own HTTPS origin must reach the Hub (401 for an
 # unknown user), and a client must not be able to pick its origin by sending
@@ -277,24 +300,11 @@ for secret in "${OWNER_TOKEN}" "${SETUP_TOKEN}" "${ENCRYPTION_KEY}"; do
   fi
 done
 
-# Finish first-run setup through the console, as the owner would. The hub
-# creates the first user and removes the setup token itself. Removing the
-# token by hand is not the same: with no user and no token the hub refuses to
-# start. After the restart below, the issued marker must prevent the option or
-# auto-generation path from recreating a setup token, while the bundled
-# Postgres service must restart.
-setup_status="$(docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
-  bash -se -o pipefail <<'SH'
-password="$(od -An -tx1 -N24 /dev/urandom | tr -d ' \n')"
-jq -n --rawfile token /data/labtether-addon/setup-token --arg password "${password}" \
-  '{username: "ltqa-owner", password: $password, setup_token: $token}' \
-  | curl --disable --insecure --silent --max-time 15 --noproxy '*' \
-    --output /dev/null --write-out '%{http_code}' \
-    --header 'Content-Type: application/json' \
-    --header 'Origin: https://127.0.0.1:3000' \
-    --data @- https://127.0.0.1:3000/api/auth/bootstrap
-SH
-)"
+# Removing the token by hand is not the same as a finished setup: with no user
+# and no token the hub refuses to start. After the restart below, the issued
+# marker must prevent the option or auto-generation path from recreating a
+# setup token while an owner exists, and the bundled Postgres must restart.
+setup_status="$(console_first_run_setup)"
 if [[ "${setup_status}" != "200" ]]; then
   echo "first-run setup through the console returned ${setup_status}, expected 200" >&2
   exit 1
@@ -333,24 +343,7 @@ docker run --detach \
   --volume "${DATA_VOLUME}:/data" \
   "${IMAGE_TAG}" >/dev/null
 
-restart_hub_pid=""
-for _ in $(seq 1 90); do
-  restart_hub_pid="$(docker exec "${CONTAINER_NAME}" pidof labtether 2>/dev/null || true)"
-  if [[ -n "${restart_hub_pid}" ]]; then
-    break
-  fi
-  if [[ "$(docker inspect --format '{{.State.Running}}' "${CONTAINER_NAME}")" != "true" ]]; then
-    echo "add-on container stopped during restart" >&2
-    docker logs "${CONTAINER_NAME}" >&2
-    exit 1
-  fi
-  sleep 1
-done
-if [[ -z "${restart_hub_pid}" ]]; then
-  echo "hub process did not restart" >&2
-  docker logs "${CONTAINER_NAME}" >&2
-  exit 1
-fi
+restart_hub_pid="$(wait_for_hub_pid "restart")"
 
 restart_hub_uid="$(docker exec "${CONTAINER_NAME}" awk '/^Uid:/ { print $2; exit }' "/proc/${restart_hub_pid}/status")"
 if [[ "${restart_hub_uid}" != "10001" ]]; then
@@ -383,6 +376,25 @@ docker exec "${CONTAINER_NAME}" jq -e '
 ' /data/labtether-addon-root/runtime.json >/dev/null
 if ! docker exec "${CONTAINER_NAME}" pg_isready -h 127.0.0.1 -p 5432 -U labtether >/dev/null; then
   echo "bundled Postgres did not restart with persisted local database state" >&2
+  exit 1
+fi
+
+# A used setup token with no owner in the database, as with a new empty
+# database_url, must not stop the Hub from starting: the add-on issues a new
+# token and owner setup works again.
+docker exec "${CONTAINER_NAME}" psql --no-psqlrc --quiet -h 127.0.0.1 -U labtether \
+  -d labtether -c 'TRUNCATE users CASCADE' >/dev/null
+docker rm -f "${CONTAINER_NAME}" >/dev/null
+docker run --detach \
+  --name "${CONTAINER_NAME}" \
+  --volume "${DATA_VOLUME}:/data" \
+  "${IMAGE_TAG}" >/dev/null
+wait_for_hub_pid "restart with no owner" >/dev/null
+assert_mode_owner /data/labtether-addon/setup-token 600:10001:10001
+wait_for_console
+setup_status="$(console_first_run_setup)"
+if [[ "${setup_status}" != "200" ]]; then
+  echo "owner setup after an emptied database returned ${setup_status}, expected 200" >&2
   exit 1
 fi
 
