@@ -71,6 +71,9 @@ def test_metric_sensors_use_percentage_without_device_class():
     for sensor in (cpu, memory, disk):
         assert sensor._attr_native_unit_of_measurement == "%"
         assert getattr(sensor, "_attr_device_class", None) is None
+        # The Hub sends values like 6.11243868695761; Home Assistant shows every
+        # digit unless the sensor suggests a precision.
+        assert sensor._attr_suggested_display_precision == 1
 
 
 def test_sensor_returns_none_when_no_metrics():
@@ -145,3 +148,15 @@ async def test_sensor_setup_adds_new_telemetry_assets_after_initial_load():
 
     assert len(added_batches) == 3
     assert {entity._asset_id for entity in added_batches[2]} == {"a2"}
+
+
+@pytest.mark.parametrize(("status", "available"), [("online", True), ("running", True), ("offline", False), ("stopped", False)])
+def test_metric_sensors_of_an_offline_device_are_unavailable(status, available):
+    """The Hub keeps returning a device's last CPU, memory and disk values for
+    an hour after it goes offline; Home Assistant must not show them as live."""
+    coord = _make_coordinator(
+        [{"id": "a1", "name": "Node1", "type": "host", "source": "agent", "status": status, "metadata": {}}],
+        metrics={"a1": {"cpu_used_percent": 27.6, "memory_used_percent": 54.6, "disk_used_percent": 86.9}},
+    )
+    for sensor in (LabTetherCpuSensor(coord, "a1"), LabTetherMemorySensor(coord, "a1"), LabTetherDiskSensor(coord, "a1")):
+        assert sensor.available is available

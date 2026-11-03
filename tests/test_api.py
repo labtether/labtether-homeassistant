@@ -358,3 +358,32 @@ async def test_setup_preview_summarizes_assets_metrics_and_alerts():
     assert preview["metric_asset_count"] == 2
     assert preview["switchable_asset_count"] == 1
     assert preview["alerts_count"] == 3
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("root", "expected"),
+    [
+        ({"service": "labtether-hub", "console_url": "http://192.0.2.10:3000"}, "http://192.0.2.10:3000"),
+        ({"service": "labtether-hub", "console_url": "https://lab.example.com"}, "https://lab.example.com"),
+        ({"service": "labtether-hub"}, None),
+        ({"service": "labtether-hub", "console_url": "javascript:alert(1)"}, None),
+        ({"service": "labtether-hub", "console_url": "http://user:pw@192.0.2.10:3000"}, None),
+        ({"service": "labtether-hub", "console_url": "http://192.0.2.10:99999"}, None),
+        ({"service": "something-else", "console_url": "http://192.0.2.10:3000"}, None),
+    ],
+)
+async def test_console_url_only_trusts_a_hub_root_with_a_plain_web_address(api_client, root, expected):
+    """Home Assistant rejects a device whose configuration_url is not a web
+    address, so only a LabTether root's own http(s) console URL is used."""
+    api_client._session.request = MagicMock(return_value=_mock_response(root))
+    assert await api_client.async_get_console_url() == expected
+    assert api_client._session.request.call_args.kwargs["headers"] == {}
+
+
+@pytest.mark.asyncio
+async def test_console_url_is_none_when_the_hub_is_down(api_client):
+    from aiohttp import ClientConnectionError
+
+    api_client._session.request = MagicMock(side_effect=ClientConnectionError())
+    assert await api_client.async_get_console_url() is None

@@ -56,6 +56,9 @@ PLATFORMS = ["sensor", "binary_sensor", "switch"]
 CONTROLLABLE_KINDS = {"vm", "container", "docker-container"}
 POWER_ACTION_SOURCES = {"proxmox", "truenas", "docker"}
 ACTIVE_ASSET_STATUSES = frozenset({"online", "running", "up", "active", "healthy"})
+# A device in one of these states sends no telemetry, so its last CPU, memory
+# and disk values are old. The LabTether console hides them too.
+INACTIVE_ASSET_STATUSES = frozenset({"offline", "stopped", "exited", "down", "dead"})
 
 # Asset source to exclude (prevents circular entity mirroring)
 EXCLUDED_SOURCES = frozenset({"home-assistant", "homeassistant"})

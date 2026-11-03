@@ -33,6 +33,12 @@ Released with LabTether Hub 2.0.0.
   where 1.x created `sensor.labtether_hub_total_assets`.
 - Setup, options and error text uses plain words and sentence case. Errors from
   power switches and `labtether.run_action` say what to change.
+- CPU, memory and disk sensors show one decimal, like the LabTether console.
+  They showed every digit the Hub sent, such as `6.11243868695761 %`.
+- CPU, memory and disk sensors are unavailable while their device is offline
+  or stopped. They kept showing the last values for up to an hour.
+- **Visit** on the LabTether Hub device opens the web console the Hub names.
+  It opened the Hub API address, which shows only JSON.
 
 ### Add-on
 

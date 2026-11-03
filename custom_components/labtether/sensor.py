@@ -13,6 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     DOMAIN,
+    INACTIVE_ASSET_STATUSES,
     TELEMETRY_KINDS,
     CONF_IMPORT_SENSORS,
     DEFAULT_IMPORT_SENSORS,
@@ -121,11 +122,21 @@ class _LabTetherMetricSensor(LabTetherEntity, SensorEntity):
     # Utilization percentages do not map to a dedicated SensorDeviceClass.
     _attr_state_class = SensorStateClass.MEASUREMENT
     _attr_native_unit_of_measurement = PERCENTAGE
+    # The Hub sends full floats; show one decimal like the LabTether console.
+    _attr_suggested_display_precision = 1
     _metric_key: str = ""
 
     def __init__(self, coordinator: LabTetherCoordinator, asset_id: str) -> None:
         super().__init__(coordinator, asset_id)
         self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_{asset_id}_{self._metric_key}"
+
+    @property
+    def available(self) -> bool:
+        """Unavailable while the device is offline or stopped: its values are old."""
+        if not super().available:
+            return False
+        status = str(self._asset.get("status", "")).strip().lower()
+        return status not in INACTIVE_ASSET_STATUSES
 
     @property
     def native_value(self) -> float | None:

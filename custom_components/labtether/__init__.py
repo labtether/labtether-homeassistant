@@ -82,7 +82,9 @@ def _build_client(hass: HomeAssistant, entry: ConfigEntry, ssl_context=None) -> 
     )
 
 
-def _ensure_hub_device(hass: HomeAssistant, entry: ConfigEntry, client: LabTetherApiClient):
+def _ensure_hub_device(
+    hass: HomeAssistant, entry: ConfigEntry, configuration_url: str
+):
     """Ensure the hub device exists even if hub entities are disabled."""
     device_registry = dr.async_get(hass)
     return device_registry.async_get_or_create(
@@ -91,7 +93,7 @@ def _ensure_hub_device(hass: HomeAssistant, entry: ConfigEntry, client: LabTethe
         name="LabTether Hub",
         manufacturer="LabTether",
         model="Hub",
-        configuration_url=client.host,
+        configuration_url=configuration_url,
     )
 
 
@@ -360,7 +362,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     except HubCACertificateError as err:
         raise ConfigEntryNotReady("LabTether CA certificate is unavailable") from err
     client = _build_client(hass, entry, ssl_context)
-    hub_device = _ensure_hub_device(hass, entry, client)
+    # The device page's Visit link opens the console; the API origin shows JSON.
+    configuration_url = await client.async_get_console_url() or client.host
+    hub_device = _ensure_hub_device(hass, entry, configuration_url)
     coordinator = LabTetherCoordinator(
         hass,
         client,
@@ -368,6 +372,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         scan_interval_seconds=scan_interval_or_default(entry_pref(entry, CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)),
     )
     coordinator.hub_device_id = getattr(hub_device, "id", None)
+    coordinator.configuration_url = configuration_url
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
     _reconcile_registry_entries(hass, entry, coordinator)
