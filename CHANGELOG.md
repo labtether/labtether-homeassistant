@@ -51,6 +51,12 @@ Released with LabTether Hub 2.0.0.
   showed "API request failed (HTTP 409)".
 - A Hub device without a name, such as the Docker group an agent reports, is
   named by its LabTether ID. Home Assistant named it after the config entry.
+- The hub device takes the **Name** typed at setup (or changed with
+  **Reconfigure**), so two hubs no longer both show as **LabTether Hub**.
+  Without a name it stays **LabTether Hub**. Entity IDs do not change.
+- Docker hosts get no CPU, memory or disk sensors and Docker containers no disk
+  sensor: the Hub sends no such values for them, so these sensors stayed
+  unknown. Existing ones are removed at the next start.
 
 ### Add-on
 
@@ -70,6 +76,8 @@ Released with LabTether Hub 2.0.0.
 - No s6-overlay deprecation warning in the add-on log at start.
 - The add-on log and docs say to set `labtether_setup_token` and restart the
   add-on to finish owner setup, which also works after the first start.
+- A stop shuts the Hub down before the bundled Postgres, so the Hub releases
+  its runtime lease and the log has no warning.
 
 ### Project
 

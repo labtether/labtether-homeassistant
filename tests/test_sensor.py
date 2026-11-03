@@ -160,3 +160,25 @@ def test_metric_sensors_of_an_offline_device_are_unavailable(status, available):
     )
     for sensor in (LabTetherCpuSensor(coord, "a1"), LabTetherMemorySensor(coord, "a1"), LabTetherDiskSensor(coord, "a1")):
         assert sensor.available is available
+
+
+@pytest.mark.asyncio
+async def test_usage_sensors_only_for_metrics_the_hub_sends():
+    """A Docker host's three sensors and a Docker container's disk sensor
+    stayed unknown forever: the Hub sends no such values for them."""
+    coord = _make_coordinator([
+        {"id": "h1", "type": "host", "source": "agent", "status": "online"},
+        {"id": "docker-host-h1", "type": "container-host", "source": "docker", "status": "online"},
+        {"id": "docker-ct-h1-abc", "type": "docker-container", "source": "docker", "status": "online"},
+    ])
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+    hass = MagicMock()
+    entry = MagicMock(entry_id="entry-1", options={}, data={}, async_on_unload=MagicMock())
+    hass.data = {"labtether": {"entry-1": {"coordinator": coord}}}
+    added = []
+    await async_setup_entry(hass, entry, added.extend)
+    usage = {(e._asset_id, e._metric_key) for e in added if hasattr(e, "_metric_key")}
+    assert usage == {
+        ("h1", "cpu_used_percent"), ("h1", "memory_used_percent"), ("h1", "disk_used_percent"),
+        ("docker-ct-h1-abc", "cpu_used_percent"), ("docker-ct-h1-abc", "memory_used_percent"),
+    }

@@ -87,6 +87,9 @@ A few safety notes:
 
 ### Hub device
 
+The hub device takes the **Name** you enter at setup, or **LabTether Hub**
+when you leave it empty. Give each hub its own name when you add more than one.
+
 | Entity | Type | Description |
 |--------|------|-------------|
 | Status | Binary sensor | Hub reachability (off when the last poll failed) |
@@ -98,9 +101,9 @@ A few safety notes:
 | Entity | Type | Description |
 |--------|------|-------------|
 | Status | Binary sensor | Online or offline |
-| CPU usage | Sensor | CPU use in % (compute devices; unavailable while offline) |
-| Memory usage | Sensor | Memory use in % (compute devices; unavailable while offline) |
-| Disk usage | Sensor | Disk use in % (compute devices; unavailable while offline) |
+| CPU usage | Sensor | CPU use in % (hosts, nodes, VMs and containers; unavailable while offline) |
+| Memory usage | Sensor | Memory use in % (hosts, nodes, VMs and containers; unavailable while offline) |
+| Disk usage | Sensor | Disk use in % (hosts, nodes, VMs and LXC containers; unavailable while offline) |
 | Power | Switch | Start and shut down (VMs and containers only, administrators only) |
 
 Power switches work for Proxmox VMs and LXC containers, TrueNAS VMs and Docker
@@ -109,9 +112,10 @@ that ignores the request keeps running. Force stop stays a separate action in
 LabTether or through `labtether.run_action`. Only Home Assistant
 administrators can use power switches; automations can too.
 
-New setups get entity IDs from these names, for example
-`sensor.labtether_hub_devices` and `sensor.nas01_cpu_usage`. After an upgrade
-from 1.x, your entities keep the IDs they already have.
+A Docker host device has no usage sensors: the agent on that machine reports
+them for its own host device. New setups get entity IDs from these names, for
+example `sensor.labtether_hub_devices` and `sensor.nas01_cpu_usage`. After an
+upgrade, your entities keep the IDs they already have.
 
 ## The `labtether.run_action` action
 

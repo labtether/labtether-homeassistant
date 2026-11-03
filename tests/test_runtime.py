@@ -490,3 +490,63 @@ async def test_setup_entry_update_listener_matches_options_flow_reload(monkeypat
     entry = make_entry()
     assert await integration.async_setup_entry(hass, entry) is True
     entry.add_update_listener.assert_called_once()
+
+
+def test_existing_never_filled_usage_sensors_are_removed_at_setup():
+    """Before 2.0 a Docker host got CPU, memory and disk sensors and a Docker
+    container a disk sensor; the Hub sends none of those, so they stayed
+    unknown. Existing installs lose exactly those sensors."""
+    hass = MagicMock()
+    entry = MagicMock(entry_id="entry-1", data={}, options={})
+    coordinator = MagicMock()
+    coordinator.data = LabTetherData(assets=[
+        {"id": "docker-host-h1", "type": "container-host", "source": "docker", "status": "online"},
+        {"id": "docker-ct-h1-abc", "type": "docker-container", "source": "docker", "status": "online"},
+        {"id": "h1", "type": "host", "source": "agent", "status": "online"},
+    ])
+    entries = []
+    for unique_id in (
+        "labtether_entry-1_docker-host-h1_cpu_used_percent",
+        "labtether_entry-1_docker-host-h1_memory_used_percent",
+        "labtether_entry-1_docker-host-h1_disk_used_percent",
+        "labtether_entry-1_docker-ct-h1-abc_cpu_used_percent",
+        "labtether_entry-1_docker-ct-h1-abc_memory_used_percent",
+        "labtether_entry-1_docker-ct-h1-abc_disk_used_percent",
+        "labtether_entry-1_h1_disk_used_percent",
+    ):
+        entries.append(MagicMock(entity_id=f"sensor.{unique_id}", platform="labtether", unique_id=unique_id))
+    entity_registry = MagicMock()
+    integration.er.async_get = MagicMock(return_value=entity_registry)
+    integration.er.async_entries_for_config_entry = MagicMock(return_value=entries)
+    integration.dr.async_get = MagicMock(return_value=MagicMock())
+    integration.dr.async_entries_for_config_entry = MagicMock(return_value=[])
+
+    integration._reconcile_registry_entries(hass, entry, coordinator)
+
+    assert [c.args[0] for c in entity_registry.async_remove.call_args_list] == [
+        "sensor.labtether_entry-1_docker-host-h1_cpu_used_percent",
+        "sensor.labtether_entry-1_docker-host-h1_memory_used_percent",
+        "sensor.labtether_entry-1_docker-host-h1_disk_used_percent",
+        "sensor.labtether_entry-1_docker-ct-h1-abc_disk_used_percent",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_hub_device_takes_the_name_typed_at_setup():
+    """Two hubs were both "LabTether Hub"; the Name field only set the title."""
+    hass = MagicMock()
+    hass.data = {}
+    hass.services.has_service.return_value = False
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+    device_registry = MagicMock()
+    integration.dr.async_get = MagicMock(return_value=device_registry)
+    integration._build_client = MagicMock(return_value=_client())
+    for name, expected in (("Garage lab ", "Garage lab"), ("", "LabTether Hub")):
+        coordinator = MagicMock()
+        coordinator.async_config_entry_first_refresh = AsyncMock()
+        integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
+        entry = MagicMock(entry_id="entry-1", options={})
+        entry.data = {"host": "https://lab.local:8443", "api_key": "token", "name": name}
+        await integration.async_setup_entry(hass, entry)
+        assert device_registry.async_get_or_create.call_args.kwargs["name"] == expected
+        assert coordinator.hub_name == expected

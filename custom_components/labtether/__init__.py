@@ -41,7 +41,8 @@ from .const import (
     PLATFORMS,
     entry_pref,
     scan_interval_or_default,
-    TELEMETRY_KINDS,
+    usage_metrics,
+    hub_device_name,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
     RUN_ACTION_ALLOWLIST,
@@ -90,7 +91,7 @@ def _ensure_hub_device(
     return device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, hub_registry_key(entry.entry_id))},
-        name="LabTether Hub",
+        name=hub_device_name(entry),
         manufacturer="LabTether",
         model="Hub",
         configuration_url=configuration_url,
@@ -154,11 +155,10 @@ def _legacy_unique_id_migrations(coordinator: LabTetherCoordinator) -> dict[tupl
             f"{DOMAIN}_{entry_id}_{asset_id}_status"
         )
 
-        if asset.get("type") in TELEMETRY_KINDS:
-            for metric_key in ("cpu_used_percent", "memory_used_percent", "disk_used_percent"):
-                migrations[("sensor", f"{DOMAIN}_{asset_id}_{metric_key}")] = (
-                    f"{DOMAIN}_{entry_id}_{asset_id}_{metric_key}"
-                )
+        for metric_key in usage_metrics(asset.get("type")):
+            migrations[("sensor", f"{DOMAIN}_{asset_id}_{metric_key}")] = (
+                f"{DOMAIN}_{entry_id}_{asset_id}_{metric_key}"
+            )
 
         if (
             asset.get("type") in CONTROLLABLE_KINDS
@@ -209,17 +209,12 @@ def _reconcile_registry_entries(
         current_device_keys.add(asset_registry_key(entry_id, asset_id))
         if entry_pref(entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS):
             expected_unique_ids.add(f"{DOMAIN}_{entry_id}_{asset_id}_status")
-        if (
-            entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS)
-            and asset.get("type") in TELEMETRY_KINDS
-        ):
+        if entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS):
+            # Sensors for metrics the Hub never sends for this kind (all three
+            # on a Docker host, disk on a Docker container) are removed here.
             expected_unique_ids.update(
                 f"{DOMAIN}_{entry_id}_{asset_id}_{metric_key}"
-                for metric_key in (
-                    "cpu_used_percent",
-                    "memory_used_percent",
-                    "disk_used_percent",
-                )
+                for metric_key in usage_metrics(asset.get("type"))
             )
         if (
             entry_pref(entry, CONF_IMPORT_SWITCHES, DEFAULT_IMPORT_SWITCHES)
@@ -373,6 +368,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
     coordinator.hub_device_id = getattr(hub_device, "id", None)
     coordinator.configuration_url = configuration_url
+    coordinator.hub_name = hub_device_name(entry)
     await coordinator.async_config_entry_first_refresh()
     _migrate_entity_unique_ids(hass, entry, coordinator)
     _reconcile_registry_entries(hass, entry, coordinator)

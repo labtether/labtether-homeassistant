@@ -16,6 +16,8 @@ ASSET_NAMES = ("LTQA Proxmox VM", "LTQA Docker Container")
 
 
 class LiveHAQA(LiveHAClient):
+    # The hub device takes the Name typed in the config flow.
+    hub_name = "LTQA LabTether"
 
 
 
@@ -138,7 +140,7 @@ class LiveHAQA(LiveHAClient):
         relevant = {
             self.friendly_name(state): state
             for state in states
-            if self.friendly_name(state).startswith("LabTether Hub ")
+            if self.friendly_name(state).startswith(self.hub_name + " ")
             or any(
                 self.friendly_name(state).startswith(asset_name + " ")
                 for asset_name in ASSET_NAMES
@@ -148,21 +150,21 @@ class LiveHAQA(LiveHAClient):
 
     async def surface_ready(self) -> dict[str, dict[str, Any]] | bool:
         snapshot = await self.surface_snapshot()
-        expected = {
-            "LabTether Hub Status",
-            "LabTether Hub Devices",
-            "LabTether Hub Active alerts",
-        }
+        hub = self.hub_name
+        expected = {f"{hub} Status", f"{hub} Devices", f"{hub} Active alerts"}
         for asset_name in ASSET_NAMES:
             expected.update(
                 {
                     f"{asset_name} Status",
                     f"{asset_name} CPU usage",
                     f"{asset_name} Memory usage",
-                    f"{asset_name} Disk usage",
                     f"{asset_name} Power",
                 }
             )
+        # The Hub sends no disk value for a Docker container.
+        expected.add("LTQA Proxmox VM Disk usage")
+        if "LTQA Docker Container Disk usage" in snapshot:
+            raise AssertionError("a Docker container got a disk sensor the Hub never fills")
         if not expected.issubset(snapshot):
             missing = sorted(expected - snapshot.keys())
             raise AssertionError(
@@ -170,17 +172,15 @@ class LiveHAQA(LiveHAClient):
             )
         if any("Circular" in name for name in snapshot):
             raise AssertionError(f"HA-sourced asset was mirrored circularly: {snapshot}")
-        if snapshot["LabTether Hub Status"]["state"] != "on":
+        if snapshot[f"{hub} Status"]["state"] != "on":
+            raise AssertionError(f"hub status not ready: {snapshot[f'{hub} Status']}")
+        if snapshot[f"{hub} Devices"]["state"] != "2":
             raise AssertionError(
-                f"hub status not ready: {snapshot['LabTether Hub Status']}"
+                f"devices sensor had unexpected state {snapshot[f'{hub} Devices']}"
             )
-        if snapshot["LabTether Hub Devices"]["state"] != "2":
+        if snapshot[f"{hub} Active alerts"]["state"] != "2":
             raise AssertionError(
-                f"devices sensor had unexpected state {snapshot['LabTether Hub Devices']}"
-            )
-        if snapshot["LabTether Hub Active alerts"]["state"] != "2":
-            raise AssertionError(
-                f"active-alerts sensor had unexpected state {snapshot['LabTether Hub Active alerts']}"
+                f"active-alerts sensor had unexpected state {snapshot[f'{hub} Active alerts']}"
             )
         expected_metrics = {
             "LTQA Proxmox VM CPU usage": 11.5,
@@ -194,7 +194,7 @@ class LiveHAQA(LiveHAClient):
                 )
         # The fake hub still sends the stopped container's last values, as the
         # real Hub does for an hour; they must not show as current.
-        for metric in ("CPU usage", "Memory usage", "Disk usage"):
+        for metric in ("CPU usage", "Memory usage"):
             name = f"LTQA Docker Container {metric}"
             if snapshot[name]["state"] != "unavailable":
                 raise AssertionError(
@@ -257,7 +257,7 @@ class LiveHAQA(LiveHAClient):
         # automations on a disconnected Hub can fire.
         async def disconnected() -> bool:
             snapshot = await self.surface_snapshot()
-            hub = snapshot.get("LabTether Hub Status")
+            hub = snapshot.get(f"{self.hub_name} Status")
             return bool(hub and hub.get("state") == "off")
 
         await self.wait_for("coordinator failure state", disconnected, timeout=45)
@@ -355,7 +355,7 @@ class LiveHAQA(LiveHAClient):
             registry_entries = await self.entity_registry_entries()
             no_sensors = not any(
                 name.endswith(("CPU usage", "Memory usage", "Disk usage"))
-                or name in {"LabTether Hub Devices", "LabTether Hub Active alerts"}
+                or name in {f"{self.hub_name} Devices", f"{self.hub_name} Active alerts"}
                 for name in snapshot
             )
             no_registry_ghosts = not any(
@@ -396,6 +396,8 @@ class LiveHAQA(LiveHAClient):
         )
         if result.get("type") != "abort" or result.get("reason") != "reconfigure_successful":
             raise AssertionError(f"reconfigure did not complete: {result}")
+        # A new Name renames the hub device, so its entities' names follow.
+        self.hub_name = "LTQA LabTether Reconfigured"
         await self.wait_for("reconfigured entry to reload", self.surface_ready)
 
     async def websocket_disable(self, disabled_by: str | None) -> dict[str, Any]:
