@@ -129,7 +129,7 @@ def _select_service_target(
     ]
     if len(matches) > 1:
         raise vol.Invalid(
-            f"Multiple LabTether entries expose asset_id={asset_id!r}; provide entry_id"
+            f"More than one LabTether hub has asset_id {asset_id!r}. Set entry_id to choose the hub."
         )
     return matches[0] if matches else None
 
@@ -283,25 +283,27 @@ def _register_run_action_service(hass: HomeAssistant) -> None:
         )
         if target is None:
             entry_context = (
-                f" in entry_id={requested_entry_id!r}"
+                f" in entry_id {requested_entry_id!r}"
                 if requested_entry_id is not None
                 else ""
             )
             raise vol.Invalid(
-                f"No loaded LabTether entry exposes asset_id={asset_id!r}{entry_context}"
+                f"No LabTether hub with run_action turned on has asset_id {asset_id!r}"
+                f"{entry_context}. Check the asset_id, or turn run_action on under Configure."
             )
 
         asset = target["coordinator"].data.get_asset(asset_id)
         source = str(asset.get("source", "")).strip().lower()
         allowed_actions = RUN_ACTION_ALLOWLIST.get(source, frozenset())
         if action not in allowed_actions:
+            allowed = ", ".join(sorted(allowed_actions)) or "none"
             raise vol.Invalid(
-                f"Action {action!r} is not exposed through Home Assistant for asset source {source!r}"
+                f"Home Assistant can't run {action!r} on this device. Allowed actions: {allowed}."
             )
         if requested_connector_id is not None and requested_connector_id.strip().lower() != source:
-            raise vol.Invalid("connector_id must match the selected asset source")
+            raise vol.Invalid(f"connector_id must be {source!r} for this device, or left out.")
         if params:
-            raise vol.Invalid("run_action does not accept arbitrary parameters")
+            raise vol.Invalid("run_action does not take params. Remove them from the call.")
 
         client: LabTetherApiClient = target["client"]
         try:
@@ -314,7 +316,7 @@ def _register_run_action_service(hass: HomeAssistant) -> None:
             )
         except LabTetherPermissionError as err:
             raise HomeAssistantError(
-                "The LabTether API key needs the actions:exec scope to run actions"
+                "The LabTether API key can't run actions. Use a key with the actions:exec scope."
             ) from err
         except LabTetherApiError as err:
             raise HomeAssistantError(f"LabTether could not run {action}: {err}") from err

@@ -156,7 +156,7 @@ async def test_stale_power_switch_fails_instead_of_reporting_success():
     coord = _make_coordinator([])
     switch = LabTetherPowerSwitch(coord, "missing")
 
-    with pytest.raises(HomeAssistantError, match="no longer available"):
+    with pytest.raises(HomeAssistantError, match="no longer in LabTether"):
         await switch.async_turn_on()
 
     coord.api.async_run_action.assert_not_awaited()

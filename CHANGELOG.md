@@ -18,6 +18,18 @@ Released with LabTether Hub 2.0.0.
 - Devices that run a LabTether agent show the agent version as their software
   version. The field was empty: the integration read `version` from the
   device's metadata, and agents report `agent_version`.
+- Entity names use the Hub 2.0 words and sentence case. **Total Assets** is now
+  **Devices**, and **Active Alerts**, **CPU Usage**, **Memory Usage** and
+  **Disk Usage** are now **Active alerts**, **CPU usage**, **Memory usage** and
+  **Disk usage**. Names and icons now come from the integration's translation
+  and icon files. The Power switch icon shows on and off, and the Active alerts
+  icon shows a check mark at 0.
+- Upgrades keep your entity IDs, history and automations, because each
+  entity's unique ID is unchanged. Only the friendly name changes, unless you
+  renamed the entity yourself. New setups get `sensor.labtether_hub_devices`
+  where 1.x created `sensor.labtether_hub_total_assets`.
+- Setup, options and error text uses plain words and sentence case. Errors from
+  power switches and `labtether.run_action` say what to change.
 
 ### Add-on
 
@@ -28,6 +40,8 @@ Released with LabTether Hub 2.0.0.
 - A used setup token with no owner account in the database, for example after
   `database_url` points at a new empty database, no longer leaves the Hub
   stopped. The add-on issues a new setup token at start.
+- The add-on description and docs use plain words, and the add-on README lists
+  the `external_url` option.
 
 ### Project
 

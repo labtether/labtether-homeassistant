@@ -2,90 +2,117 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect to LabTether Hub",
-        "description": "Connect Home Assistant to an existing LabTether hub. HTTPS is required except for loopback addresses. For a private CA, place its PEM file inside Home Assistant and enter its absolute path; keep certificate checks enabled. Insecure HTTP and TLS bypass require explicit consent.",
+        "title": "Connect to LabTether",
+        "description": "Enter the hub URL and an API key. The URL needs HTTPS unless it is a loopback address. For a private CA, enter the full path of its PEM file inside Home Assistant.",
         "data": {
           "host": "Hub URL",
-          "api_key": "API Key",
+          "api_key": "API key",
           "ca_certificate": "CA certificate PEM path (optional)",
-          "name": "Display Name",
+          "name": "Name (optional)",
           "ignore_cert_errors": "Ignore TLS certificate errors",
           "allow_insecure_http": "Allow API key over insecure HTTP"
         }
       },
       "import_options": {
-        "title": "Choose What To Import",
-        "description": "Preview for {host_label}: {asset_count} assets, {telemetry_asset_count} telemetry-capable assets, {switchable_asset_count} controllable assets, {alerts_count} active alerts. Visible sources: {sources_label}. Choose which entities and services Home Assistant should create.",
+        "title": "Choose what to import",
+        "description": "**{host_label}**\n- Devices: {asset_count}\n- With CPU, memory and disk: {telemetry_asset_count}\n- With power control: {switchable_asset_count}\n- Active alerts: {alerts_count}\n- Sources: {sources_label}",
         "data": {
-          "import_status_entities": "Import status entities",
-          "import_telemetry_sensors": "Import telemetry sensors",
-          "import_power_switches": "Import power switches",
-          "enable_run_action_service": "Enable run_action service",
+          "import_status_entities": "Status sensors",
+          "import_telemetry_sensors": "CPU, memory and disk sensors",
+          "import_power_switches": "Power switches",
+          "enable_run_action_service": "Enable labtether.run_action",
           "scan_interval_seconds": "Polling interval (seconds)"
         }
       },
       "review": {
-        "title": "Review Setup",
-        "description": "- **Title:** {title}\n- **Hub:** {host}\n- **CA certificate:** {ca_certificate}\n- **Ignore TLS certificate errors:** {ignore_cert_errors}\n- **Allow insecure HTTP:** {allow_insecure_http}\n- **Import status entities:** {import_status_entities}\n- **Import telemetry sensors:** {import_telemetry_sensors}\n- **Import power switches:** {import_power_switches}\n- **Enable run_action service:** {enable_run_action_service}\n- **Polling interval:** {scan_interval}s\n- **Preview:** {asset_count} assets, {alerts_count} active alerts.",
+        "title": "Review setup",
+        "description": "- **Title:** {title}\n- **Hub:** {host}\n- **CA certificate:** {ca_certificate}\n- **Ignore TLS certificate errors:** {ignore_cert_errors}\n- **Allow insecure HTTP:** {allow_insecure_http}\n- **Status sensors:** {import_status_entities}\n- **CPU, memory and disk sensors:** {import_telemetry_sensors}\n- **Power switches:** {import_power_switches}\n- **labtether.run_action:** {enable_run_action_service}\n- **Polling interval:** {scan_interval}s\n- **Devices:** {asset_count}\n- **Active alerts:** {alerts_count}",
         "data": {}
       },
       "reconfigure": {
-        "title": "Update LabTether Connection",
-        "description": "Update the Home Assistant connection details for this LabTether hub.",
+        "title": "Update the LabTether connection",
         "data": {
           "host": "Hub URL",
-          "api_key": "API Key",
+          "api_key": "API key",
           "ca_certificate": "CA certificate PEM path (optional)",
-          "name": "Display Name",
+          "name": "Name (optional)",
           "ignore_cert_errors": "Ignore TLS certificate errors",
           "allow_insecure_http": "Allow API key over insecure HTTP"
         }
       },
       "reauth_confirm": {
         "title": "Reconnect to LabTether",
-        "description": "Authentication to {host} failed. Enter a fresh API key to restore the LabTether integration.",
+        "description": "{host} rejected the API key. Enter a new key.",
         "data": {
-          "api_key": "API Key",
+          "api_key": "API key",
           "ignore_cert_errors": "Ignore TLS certificate errors"
         }
       }
     },
     "error": {
-      "cannot_connect": "Cannot connect to the LabTether hub. Check the URL, API key, and network path.",
-      "invalid_auth": "The LabTether API key was rejected.",
-      "missing_scope": "The LabTether API key works but is missing a scope. Use a key with assets:read, metrics:read and alerts:read, plus actions:exec for power switches.",
-      "invalid_ca_certificate": "The CA certificate file must exist inside Home Assistant and contain valid PEM certificates.",
-      "invalid_tls_config": "Choose the CA certificate path with HTTPS and keep Ignore TLS certificate errors off.",
+      "cannot_connect": "Can't connect to a LabTether hub at this URL. Check the URL and the network path.",
+      "invalid_auth": "The hub rejected this API key. Enter a valid key.",
+      "missing_scope": "This API key is missing a scope. Use a key with assets:read, metrics:read and alerts:read, plus actions:exec for power switches and labtether.run_action.",
+      "invalid_ca_certificate": "No valid PEM certificate at this path. Enter the full path of a PEM file inside Home Assistant.",
+      "invalid_tls_config": "A CA certificate path needs an HTTPS URL with Ignore TLS certificate errors turned off.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds.",
-      "invalid_url": "Enter a credential-free HTTPS hub origin. Plain HTTP requires loopback or explicit insecure-HTTP consent.",
-      "tls_error": "TLS validation failed. For a private CA, add its PEM path and keep certificate checks enabled.",
-      "unknown": "An unexpected error occurred."
+      "invalid_url": "Enter the hub URL as https://host:port, without a user name, password or path. Plain HTTP works only for loopback addresses or with Allow API key over insecure HTTP turned on.",
+      "tls_error": "The hub's certificate is not trusted. For a private CA, enter the path of its PEM file.",
+      "unknown": "Unexpected error. The Home Assistant log has the details."
     },
     "abort": {
-      "already_configured": "This LabTether hub is already configured.",
-      "reauth_successful": "The LabTether connection was reauthenticated successfully.",
-      "reconfigure_successful": "The LabTether connection was updated successfully.",
-      "unknown": "An unexpected error occurred. Check the Home Assistant log for details."
+      "already_configured": "This hub is already set up.",
+      "reauth_successful": "Reconnected to LabTether.",
+      "reconfigure_successful": "LabTether connection updated.",
+      "unknown": "Unexpected error. The Home Assistant log has the details."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "LabTether Options",
-        "description": "Adjust polling, imported entity types, the action service, and TLS behavior for this LabTether connection.",
+        "title": "LabTether options",
         "data": {
           "ignore_cert_errors": "Ignore TLS certificate errors",
-          "import_status_entities": "Import status entities",
-          "import_telemetry_sensors": "Import telemetry sensors",
-          "import_power_switches": "Import power switches",
-          "enable_run_action_service": "Enable run_action service",
+          "import_status_entities": "Status sensors",
+          "import_telemetry_sensors": "CPU, memory and disk sensors",
+          "import_power_switches": "Power switches",
+          "enable_run_action_service": "Enable labtether.run_action",
           "scan_interval_seconds": "Polling interval (seconds)"
         }
       }
     },
     "error": {
-      "invalid_tls_config": "Turn off Ignore TLS certificate errors while a CA certificate path is configured.",
+      "invalid_tls_config": "Turn off Ignore TLS certificate errors while a CA certificate path is set.",
       "invalid_scan_interval": "Enter a polling interval from 5 to 3600 seconds."
+    }
+  },
+  "entity": {
+    "binary_sensor": {
+      "status": {
+        "name": "Status"
+      }
+    },
+    "sensor": {
+      "devices": {
+        "name": "Devices"
+      },
+      "active_alerts": {
+        "name": "Active alerts"
+      },
+      "cpu_usage": {
+        "name": "CPU usage"
+      },
+      "memory_usage": {
+        "name": "Memory usage"
+      },
+      "disk_usage": {
+        "name": "Disk usage"
+      }
+    },
+    "switch": {
+      "power": {
+        "name": "Power"
+      }
     }
   }
 }

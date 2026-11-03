@@ -84,8 +84,7 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
     """Switch to start/stop a VM or container."""
 
     _attr_device_class = SwitchDeviceClass.SWITCH
-    _attr_name = "Power"
-    _attr_icon = "mdi:power"
+    _attr_translation_key = "power"
 
     def __init__(self, coordinator: LabTetherCoordinator, asset_id: str) -> None:
         super().__init__(coordinator, asset_id)
@@ -120,7 +119,7 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
             )
         except LabTetherPermissionError as err:
             raise HomeAssistantError(
-                "The LabTether API key needs the actions:exec scope to control power"
+                "The LabTether API key can't control power. Use a key with the actions:exec scope."
             ) from err
         except LabTetherApiError as err:
             raise HomeAssistantError(f"LabTether could not change the power state: {err}") from err
@@ -145,15 +144,11 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
         """Return the current asset action contract or fail visibly."""
         asset = self._asset
         if asset is None:
-            raise HomeAssistantError(
-                f"LabTether asset {self._asset_id!r} is no longer available"
-            )
+            raise HomeAssistantError("This device is no longer in LabTether.")
         source = str(asset.get("source", "")).strip().lower()
         actions = _ACTION_MAP.get(source)
         if actions is None:
-            raise HomeAssistantError(
-                f"LabTether asset {self._asset_id!r} no longer has a supported power source"
-            )
+            raise HomeAssistantError("LabTether can no longer control power for this device.")
         if source == "proxmox" and asset.get("type") == "container":
             return {"start": "ct.start", "stop": "ct.shutdown", "connector_id": source}
         return actions

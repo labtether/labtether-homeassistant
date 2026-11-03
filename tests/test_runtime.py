@@ -79,7 +79,7 @@ def test_select_service_target_rejects_ambiguous_asset_without_entry_id():
         }
     }
 
-    with pytest.raises(integration.vol.Invalid, match="provide entry_id"):
+    with pytest.raises(integration.vol.Invalid, match="Set entry_id"):
         integration._select_service_target(hass, "shared")
 
     selected = integration._select_service_target(hass, "shared", "entry-b")
@@ -141,7 +141,7 @@ async def test_run_action_service_is_admin_only_and_bounded_to_power_actions(mon
         "connector_id": "proxmox",
         "params": {"force": True},
     }
-    with pytest.raises(integration.vol.Invalid, match="not exposed"):
+    with pytest.raises(integration.vol.Invalid, match="can.t run .snapshot.delete."):
         await handler(arbitrary_call)
 
 
@@ -176,7 +176,7 @@ async def test_run_action_service_requires_entry_for_duplicate_asset_ids(monkeyp
 
     ambiguous_call = MagicMock()
     ambiguous_call.data = {"asset_id": "shared", "action": "vm.start"}
-    with pytest.raises(integration.vol.Invalid, match="provide entry_id"):
+    with pytest.raises(integration.vol.Invalid, match="Set entry_id"):
         await handler(ambiguous_call)
     clients[0].async_run_action.assert_not_awaited()
     clients[1].async_run_action.assert_not_awaited()
@@ -232,7 +232,7 @@ async def test_run_action_service_does_not_expose_disabled_entry(monkeypatch):
         "action": "vm.start",
         "entry_id": "entry-disabled",
     }
-    with pytest.raises(integration.vol.Invalid, match="No loaded LabTether entry"):
+    with pytest.raises(integration.vol.Invalid, match="No LabTether hub with run_action turned on"):
         await handler(call)
     disabled_client.async_run_action.assert_not_awaited()
 

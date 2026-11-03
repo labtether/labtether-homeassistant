@@ -68,7 +68,7 @@ class LabTetherHubStatusSensor(LabTetherHubEntity, BinarySensorEntity):
     """Binary sensor for hub reachability."""
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
-    _attr_name = "Status"
+    _attr_translation_key = "status"
 
     def __init__(self, coordinator: LabTetherCoordinator) -> None:
         super().__init__(coordinator)
@@ -86,10 +86,10 @@ class LabTetherHubStatusSensor(LabTetherHubEntity, BinarySensorEntity):
 
 
 class LabTetherAssetStatusSensor(LabTetherEntity, BinarySensorEntity):
-    """Binary sensor for asset online/offline status."""
+    """Binary sensor for device online/offline status."""
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
-    _attr_name = "Status"
+    _attr_translation_key = "status"
 
     def __init__(self, coordinator: LabTetherCoordinator, asset_id: str) -> None:
         super().__init__(coordinator, asset_id)

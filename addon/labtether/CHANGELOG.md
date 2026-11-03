@@ -20,6 +20,9 @@ Changes:
   the add-on stops at start and its log says to set a new
   `labtether_setup_token` option.
 
+- The add-on description and docs use plain words, and the add-on README lists
+  the `external_url` option.
+
 ## 1.7.1
 
 Runs LabTether Hub 1.7.1.
