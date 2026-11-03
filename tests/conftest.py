@@ -163,6 +163,12 @@ class _CoordinatorEntity:
     def async_set_context(self, context):
         self._context = context
 
+    def async_write_ha_state(self):
+        pass
+
+    def _handle_coordinator_update(self):
+        self.async_write_ha_state()
+
     def __init_subclass__(cls, **kw):
         super().__init_subclass__(**kw)
 

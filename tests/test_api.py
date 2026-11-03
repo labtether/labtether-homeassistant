@@ -387,3 +387,26 @@ async def test_console_url_is_none_when_the_hub_is_down(api_client):
 
     api_client._session.request = MagicMock(side_effect=ClientConnectionError())
     assert await api_client.async_get_console_url() is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("status", "payload", "content_type", "expected"),
+    [
+        (423, {"error": "actions are blocked by active maintenance windows"}, "application/json",
+         "Actions are blocked by active maintenance windows"),
+        (409, {"error": "agent is not connected"}, "application/json", "Agent is not connected"),
+        (500, None, "text/plain", "The hub had an internal error"),
+        (404, {"error": "bad\u0007text"}, "application/json", "The hub refused the request"),
+    ],
+)
+async def test_hub_errors_reach_the_user_in_words_not_status_codes(api_client, status, payload, content_type, expected):
+    """Power switches and run_action show this text; it showed 'API request
+    failed (HTTP 409)' when the device's agent was offline."""
+    body = b"oops" if payload is None else None
+    api_client._session.request = MagicMock(
+        return_value=_mock_response(payload, status=status, content_type=content_type, body=body)
+    )
+    with pytest.raises(LabTetherApiError) as err:
+        await api_client.async_run_action(asset_id="docker-ct-1", connector_id="docker", action_id="container.stop")
+    assert str(err.value) == expected

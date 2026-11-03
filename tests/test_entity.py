@@ -116,3 +116,12 @@ def test_asset_device_model_is_a_plain_name():
     assert model("nas-1") == "NAS"
     assert model("odd-1") == "Rack shelf"
     assert model("bare-1") is None
+
+
+def test_asset_without_a_name_is_named_by_its_id():
+    """Home Assistant names a device with an empty name after the config entry;
+    the Hub's agent Docker cluster has an empty name."""
+    assets = [{"id": "docker-cluster-host1", "name": "", "type": "connector-cluster", "source": "docker", "status": "online"}]
+    coord = _make_coordinator("entry-a", assets)
+    info = LabTetherAssetStatusSensor(coord, "docker-cluster-host1").device_info
+    assert info["name"] == "docker-cluster-host1"

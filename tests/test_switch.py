@@ -204,3 +204,32 @@ async def test_switch_setup_skips_unsupported_sources_and_adds_new_supported_ass
 
     assert len(added_batches) == 3
     assert added_batches[2][0]._asset_id == "vm-2"
+
+
+@pytest.mark.asyncio
+async def test_switch_shows_the_requested_state_until_the_hub_reports_it(monkeypatch):
+    """The Hub runs power actions in the background. Without a pending state the
+    switch flipped back to on for a whole poll after the user turned it off."""
+    import labtether.switch as switch_module
+
+    clock = [1000.0]
+    monkeypatch.setattr(switch_module.time, "monotonic", lambda: clock[0])
+    online = {"id": "ct-1", "type": "docker-container", "source": "docker", "status": "online"}
+    coord = _make_coordinator([online])
+    switch = LabTetherPowerSwitch(coord, "ct-1")
+
+    await switch.async_turn_off()
+    coord.async_request_refresh.assert_awaited_once()
+    assert switch.is_on is False  # the Hub still says online
+
+    switch._handle_coordinator_update()  # a poll before the container stopped
+    assert switch.is_on is False
+
+    coord.data = replace(coord.data, assets=[{**online, "status": "offline"}])
+    switch._handle_coordinator_update()
+    coord.data = replace(coord.data, assets=[online])  # started again elsewhere
+    assert switch.is_on is True  # pending ended when the Hub agreed
+
+    await switch.async_turn_off()
+    clock[0] += switch_module.PENDING_POWER_SECONDS
+    assert switch.is_on is True  # the action never took effect: show the truth
