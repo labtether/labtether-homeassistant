@@ -89,3 +89,30 @@ def test_asset_device_shows_agent_version():
 
     assert LabTetherAssetStatusSensor(coord, "srv-1").device_info["sw_version"] == "v2.0.0"
     assert LabTetherAssetStatusSensor(coord, "pve-1").device_info["sw_version"] == "8.4.1"
+
+
+def test_asset_device_model_is_a_plain_name():
+    """The device page showed the Hub's raw kind code (`hypervisor-node`) as
+    the model. Known kinds read as plain names, a known connector names its
+    own kind, and an unknown kind still reads as words."""
+    assets = [
+        {"id": "pve-1", "name": "pve01", "type": "hypervisor-node", "source": "proxmox", "status": "online"},
+        {"id": "ct-101", "name": "pihole", "type": "container", "source": "proxmox", "status": "online"},
+        {"id": "docker-ct-1", "name": "nginx", "type": "docker-container", "source": "docker", "status": "running"},
+        {"id": "vm-100", "name": "web01", "type": "vm", "source": "proxmox", "status": "online"},
+        {"id": "nas-1", "name": "nas01", "type": "nas", "source": "truenas", "status": "online"},
+        {"id": "odd-1", "name": "rack", "type": "rack-shelf", "source": "manual", "status": "online"},
+        {"id": "bare-1", "name": "bare", "status": "online"},
+    ]
+    coord = _make_coordinator("entry-a", assets)
+
+    def model(asset_id):
+        return LabTetherAssetStatusSensor(coord, asset_id).device_info["model"]
+
+    assert model("pve-1") == "Proxmox node"
+    assert model("ct-101") == "LXC container"
+    assert model("docker-ct-1") == "Docker container"
+    assert model("vm-100") == "Virtual machine"
+    assert model("nas-1") == "NAS"
+    assert model("odd-1") == "Rack shelf"
+    assert model("bare-1") is None

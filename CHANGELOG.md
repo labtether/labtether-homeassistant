@@ -15,6 +15,9 @@ Released with LabTether Hub 2.0.0.
   Reconfigure and reauthentication reload the entry once instead of twice, and
   devices link to the hub device by its registry id on Home Assistant 2026.8
   and newer. The old link stops working in Home Assistant 2027.8.
+- The device page shows what each device is as its model, such as **Proxmox
+  node**, **LXC container**, **Docker container** or **Virtual machine**. It
+  showed the Hub's type code, such as `hypervisor-node`.
 - Devices that run a LabTether agent show the agent version as their software
   version. The field was empty: the integration read `version` from the
   device's metadata, and agents report `agent_version`.

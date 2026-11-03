@@ -15,6 +15,56 @@ from .coordinator import LabTetherCoordinator
 _LINK_BY_DEVICE_ID = "via_device_id" in getattr(DeviceInfo, "__optional_keys__", ())
 
 
+# The Hub's asset kinds (hub internal/model/resource.go and its connectors)
+# as the plain names a person reads on the device page.
+_KIND_NAMES = {
+    "host": "Host",
+    "device": "Device",
+    "hub": "Hub",
+    "hypervisor-node": "Hypervisor node",
+    "vm": "Virtual machine",
+    "container": "Container",
+    "container-host": "Container host",
+    "docker-container": "Docker container",
+    "connector-cluster": "Connector",
+    "nas": "NAS",
+    "storage-controller": "Storage controller",
+    "storage-pool": "Storage pool",
+    "dataset": "Dataset",
+    "datastore": "Datastore",
+    "disk": "Disk",
+    "share-smb": "SMB share",
+    "share-nfs": "NFS share",
+    "compose-stack": "Compose stack",
+    "stack": "Stack",
+    "app": "App",
+    "service": "Service",
+    "ups": "UPS",
+    "pdu": "PDU",
+}
+
+# The same kind from a known connector, where the source names it better.
+_SOURCE_KIND_NAMES = {
+    ("proxmox", "hypervisor-node"): "Proxmox node",
+    ("proxmox", "container"): "LXC container",
+    ("pbs", "storage-controller"): "Proxmox Backup Server",
+    ("docker", "container-host"): "Docker host",
+}
+
+
+def _device_model(asset: Mapping[str, Any]) -> str | None:
+    """Plain name for the asset's kind; unknown kinds read as words."""
+    kind = str(asset.get("type") or "").strip().lower()
+    if not kind:
+        return None
+    source = str(asset.get("source") or "").strip().lower()
+    name = _SOURCE_KIND_NAMES.get((source, kind)) or _KIND_NAMES.get(kind)
+    if name:
+        return name
+    words = kind.replace("-", " ").replace("_", " ")
+    return words[:1].upper() + words[1:]
+
+
 def _software_version(asset: Mapping[str, Any]) -> str | None:
     """Hub agents report `agent_version`; `version` is the older key."""
     metadata = asset.get("metadata")
@@ -63,7 +113,7 @@ class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
             identifiers={(DOMAIN, asset_registry_key(entry_id, self._asset_id))},
             name=str(asset.get("name", self._asset_id)),
             manufacturer="LabTether",
-            model=str(asset.get("type", "unknown")),
+            model=_device_model(asset),
             sw_version=_software_version(asset),
         )
         # Link non-hub assets to the hub device. Home Assistant 2026.8 and newer
