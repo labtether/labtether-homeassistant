@@ -38,9 +38,9 @@ When no admin password is configured, the first-run setup token is kept in
 into the state that root reads, and a token from the options is staged only
 once, so a used token cannot come back after a restart.
 
-The add-on never prints secret values in logs. To know the setup token before
-first start, set a strong `labtether_setup_token` option, then remove or change
-it after owner setup.
+The add-on never prints secret values in logs. To finish owner setup, set a
+strong `labtether_setup_token` option and restart the add-on (before or after
+the first start), then remove it after owner setup.
 
 ## Runtime security
 
