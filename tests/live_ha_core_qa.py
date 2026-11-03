@@ -186,14 +186,19 @@ class LiveHAQA(LiveHAClient):
             "LTQA Proxmox VM CPU usage": 11.5,
             "LTQA Proxmox VM Memory usage": 22.5,
             "LTQA Proxmox VM Disk usage": 33.5,
-            "LTQA Docker Container CPU usage": 44.5,
-            "LTQA Docker Container Memory usage": 55.5,
-            "LTQA Docker Container Disk usage": 66.5,
         }
         for name, value in expected_metrics.items():
             if abs(float(snapshot[name]["state"]) - value) > 0.001:
                 raise AssertionError(
                     f"metric {name} had unexpected state {snapshot[name]}"
+                )
+        # The fake hub still sends the stopped container's last values, as the
+        # real Hub does for an hour; they must not show as current.
+        for metric in ("CPU usage", "Memory usage", "Disk usage"):
+            name = f"LTQA Docker Container {metric}"
+            if snapshot[name]["state"] != "unavailable":
+                raise AssertionError(
+                    f"stopped container metric {name} was not unavailable: {snapshot[name]}"
                 )
         if snapshot["LTQA Proxmox VM Status"]["state"] != "on":
             raise AssertionError(

@@ -143,5 +143,10 @@ class LabTetherHubEntity(CoordinatorEntity[LabTetherCoordinator]):
             name="LabTether Hub",
             manufacturer="LabTether",
             model="Hub",
-            configuration_url=self.coordinator.api.host,
+            configuration_url=self._configuration_url(),
         )
+
+    def _configuration_url(self) -> str:
+        """The console address found at setup, else the Hub URL."""
+        url = getattr(self.coordinator, "configuration_url", None)
+        return url if isinstance(url, str) and url else self.coordinator.api.host

@@ -98,9 +98,9 @@ A few safety notes:
 | Entity | Type | Description |
 |--------|------|-------------|
 | Status | Binary sensor | Online or offline |
-| CPU usage | Sensor | CPU use in % (compute devices) |
-| Memory usage | Sensor | Memory use in % (compute devices) |
-| Disk usage | Sensor | Disk use in % (compute devices) |
+| CPU usage | Sensor | CPU use in % (compute devices; unavailable while offline) |
+| Memory usage | Sensor | Memory use in % (compute devices; unavailable while offline) |
+| Disk usage | Sensor | Disk use in % (compute devices; unavailable while offline) |
 | Power | Switch | Start and shut down (VMs and containers only, administrators only) |
 
 Power switches work for Proxmox VMs and LXC containers, TrueNAS VMs and Docker

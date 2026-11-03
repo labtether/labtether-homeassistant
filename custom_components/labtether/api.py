@@ -90,6 +90,25 @@ def hub_origin_is_valid(host: str, *, allow_insecure_http: bool = False) -> bool
     return True
 
 
+def console_url_or_none(value: Any) -> str | None:
+    """Return the Hub's console address when it is a plain http(s) URL."""
+    if not isinstance(value, str) or len(value) > MAX_ASSET_FIELD_LENGTH:
+        return None
+    value = value.strip()
+    if any(ord(character) < 0x20 or ord(character) == 0x7F for character in value):
+        return None
+    parsed = urlparse(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    try:
+        parsed.port
+    except ValueError:
+        return None
+    return value
+
+
 class LabTetherApiError(Exception):
     """Exception for LabTether API errors."""
 
@@ -232,6 +251,20 @@ class LabTetherApiClient:
         data = await self._request("GET", "/", authenticated=False)
         if data.get("service") != "labtether-hub":
             raise LabTetherApiError("The endpoint is not a LabTether hub")
+
+    async def async_get_console_url(self) -> str | None:
+        """Return the web console address the Hub names on its public root.
+
+        The API origin answers with JSON only, so the hub device links here.
+        Returns None when the Hub is unreachable or names no usable address.
+        """
+        try:
+            data = await self._request("GET", "/", authenticated=False)
+        except LabTetherApiError:
+            return None
+        if data.get("service") != "labtether-hub":
+            return None
+        return console_url_or_none(data.get("console_url"))
 
     async def async_get_setup_preview(self) -> dict[str, Any]:
         """Return a setup preview summary."""

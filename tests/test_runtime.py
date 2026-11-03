@@ -23,6 +23,12 @@ from labtether.const import (
 )
 
 
+def _client(console_url="http://lab.local:3000"):
+    client = MagicMock(host="https://lab.local:8443")
+    client.async_get_console_url = AsyncMock(return_value=console_url)
+    return client
+
+
 def _run_action_entry(enabled=True):
     entry = MagicMock()
     entry.options = {CONF_ENABLE_RUN_ACTION_SERVICE: enabled}
@@ -407,13 +413,15 @@ async def test_setup_entry_ensures_hub_device_exists():
     coordinator.async_config_entry_first_refresh = AsyncMock()
 
     integration.dr.async_get = MagicMock(return_value=device_registry)
-    integration._build_client = MagicMock(return_value=MagicMock(host="https://lab.local:8443"))
+    integration._build_client = MagicMock(return_value=_client())
     integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
 
     result = await integration.async_setup_entry(hass, entry)
 
     assert result is True
     device_registry.async_get_or_create.assert_called_once()
+    # Visit on the hub device opens the console, not the JSON-only API origin.
+    assert device_registry.async_get_or_create.call_args.kwargs["configuration_url"] == "http://lab.local:3000"
     assert integration.LabTetherCoordinator.call_args.kwargs["scan_interval_seconds"] == DEFAULT_SCAN_INTERVAL
     coordinator.async_add_listener.assert_called_once()
 
@@ -437,7 +445,7 @@ async def test_setup_entry_defaults_malformed_stored_scan_interval():
     coordinator.async_config_entry_first_refresh = AsyncMock()
 
     integration.dr.async_get = MagicMock(return_value=MagicMock())
-    integration._build_client = MagicMock(return_value=MagicMock(host="https://lab.local:8443"))
+    integration._build_client = MagicMock(return_value=_client())
     integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
 
     result = await integration.async_setup_entry(hass, entry)
@@ -469,7 +477,7 @@ async def test_setup_entry_update_listener_matches_options_flow_reload(monkeypat
     coordinator = MagicMock()
     coordinator.async_config_entry_first_refresh = AsyncMock()
     integration.dr.async_get = MagicMock(return_value=MagicMock())
-    integration._build_client = MagicMock(return_value=MagicMock(host="https://lab.local:8443"))
+    integration._build_client = MagicMock(return_value=_client())
     integration.LabTetherCoordinator = MagicMock(return_value=coordinator)
 
     assert issubclass(LabTetherOptionsFlow, ha_config_entries.OptionsFlowWithReload)
