@@ -70,9 +70,12 @@ you point `database_url` at a new empty database, the add-on issues a new setup
 token when it starts. With `auto_generate_credentials` turned off, set a new
 `labtether_setup_token` option instead.
 
-Secret values are never printed in add-on logs. If you cannot read the setup
-token file locally, configure a known strong `labtether_setup_token` option
-before first start and remove or rotate the option after owner setup.
+Secret values are never printed in add-on logs, and Home Assistant does not
+show the add-on's `/data` folder. To finish owner setup, set a strong
+`labtether_setup_token` on the **Configuration** tab and restart the add-on,
+then enter that token on the setup screen. This works before or after the
+first start, as long as no owner exists yet. Remove the option after owner
+setup.
 
 ## Backups
 

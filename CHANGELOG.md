@@ -67,6 +67,9 @@ Released with LabTether Hub 2.0.0.
   instead of raw keys such as `labtether_owner_token`.
 - With `external_url` set, the Hub names its HTTPS console at that host, so
   the integration's **Visit** link opens it.
+- No s6-overlay deprecation warning in the add-on log at start.
+- The add-on log and docs say to set `labtether_setup_token` and restart the
+  add-on to finish owner setup, which also works after the first start.
 
 ### Project
 

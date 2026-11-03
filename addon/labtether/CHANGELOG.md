@@ -29,6 +29,14 @@ Changes:
 - With `external_url` set, the Hub names its HTTPS console at that host on
   port 3000. It named `http://...:3000`, which the add-on's console refuses.
 
+- The add-on log no longer shows the s6-overlay warning "defining user bundles
+  in /etc/s6-overlay/s6-rc.d is deprecated" at every start.
+
+- The first-start log and the docs say how to finish owner setup in Home
+  Assistant: set `labtether_setup_token` and restart the add-on. They said to
+  set it before the first start or to read a file in the add-on's `/data`,
+  which Home Assistant does not show. Setting it after the first start works.
+
 ## 1.7.1
 
 Runs LabTether Hub 1.7.1.
