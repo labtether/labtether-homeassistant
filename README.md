@@ -22,7 +22,7 @@ alert fires.
 - **Power switches** to start and shut down VMs and containers.
 - **Hub sensors** for reachability, device count and active alerts, ready to
   use in automations.
-- **The `labtether.run_action` service** for start and stop from your own
+- **The `labtether.run_action` action** for start and stop from your own
   automations. It is off until you turn it on.
 - **New devices appear on their own.** No reload needed.
 - **More than one hub.** Each connection keeps its own entities, and upgrades
@@ -59,22 +59,22 @@ Copy `custom_components/labtether` into your Home Assistant
 3. If your hub uses a private CA, copy its PEM file into the Home Assistant
    config folder first and enter its path, for example
    `/config/labtether-ca.pem`. Certificate and hub-name checks stay on.
-4. On **Choose What To Import**, check the live preview of devices and alerts,
-   then pick what to create: status entities, telemetry sensors, power
-   switches, the `labtether.run_action` service, and how often to poll.
+4. On **Choose what to import**, check the device and alert counts, then pick
+   what to create: status sensors, CPU, memory and disk sensors, power
+   switches, the `labtether.run_action` action, and how often to poll.
 5. Review the summary and finish.
 
 A few safety notes:
 
 - LabTether needs HTTPS except on loopback addresses. **Allow API key over
-  insecure HTTP** sends the key unencrypted; turn it on only if you accept that.
-- **Ignore TLS certificate errors** is for older setups. Use a CA path instead,
-  and never both.
+  insecure HTTP** sends the key unencrypted.
+- **Ignore TLS certificate errors** is for older setups. It cannot be combined
+  with a CA path.
 
 ### Change it later
 
-- **Configure** changes what is imported, the polling interval, the service and
-  TLS settings.
+- **Configure** changes what is imported, the polling interval,
+  `labtether.run_action` and the TLS settings.
 - If the API key stops working, Home Assistant asks you to sign in again
   instead of making you remove and re-add the hub.
 - **Reconfigure** updates the hub URL, CA path or HTTPS setting in place. Keep
@@ -90,17 +90,17 @@ A few safety notes:
 | Entity | Type | Description |
 |--------|------|-------------|
 | Status | Binary sensor | Hub reachability (off when the last poll failed) |
-| Total Assets | Sensor | Count of all monitored devices |
-| Active Alerts | Sensor | Count of firing alerts |
+| Devices | Sensor | Number of devices on the hub |
+| Active alerts | Sensor | Number of firing alerts |
 
 ### One device per machine, VM or container
 
 | Entity | Type | Description |
 |--------|------|-------------|
 | Status | Binary sensor | Online or offline |
-| CPU Usage | Sensor | CPU use in % (compute devices) |
-| Memory Usage | Sensor | Memory use in % (compute devices) |
-| Disk Usage | Sensor | Disk use in % (compute devices) |
+| CPU usage | Sensor | CPU use in % (compute devices) |
+| Memory usage | Sensor | Memory use in % (compute devices) |
+| Disk usage | Sensor | Disk use in % (compute devices) |
 | Power | Switch | Start and shut down (VMs and containers only, administrators only) |
 
 Power switches work for Proxmox VMs and LXC containers, TrueNAS VMs and Docker
@@ -109,7 +109,11 @@ that ignores the request keeps running. Force stop stays a separate action in
 LabTether or through `labtether.run_action`. Only Home Assistant
 administrators can use power switches; automations can too.
 
-## The `labtether.run_action` service
+New setups get entity IDs from these names, for example
+`sensor.labtether_hub_devices` and `sensor.nas01_cpu_usage`. After an upgrade
+from 1.x, your entities keep the IDs they already have.
+
+## The `labtether.run_action` action
 
 Runs an approved start or stop action from an automation you control. It is off
 by default and does not expose any other connector actions or parameters.
@@ -120,7 +124,7 @@ For Proxmox, `vm.shutdown` / `ct.shutdown` ask the guest to shut down, while
 `vm.stop` / `ct.stop` force it off.
 
 ```yaml
-service: labtether.run_action
+action: labtether.run_action
 data:
   asset_id: "pve-vm-100"
   action: "vm.start"
@@ -128,9 +132,9 @@ data:
   connector_id: "proxmox"
 ```
 
-`entry_id` is optional when the asset ID is unique across your LabTether hubs.
-If two hubs have the same asset ID, the call is rejected until you pick the
-exact config entry.
+`asset_id` is the device's LabTether ID. `entry_id` is optional when that ID
+is unique across your LabTether hubs. If two hubs have the same ID, the call is
+rejected until you set `entry_id`.
 
 ## Run the hub inside Home Assistant (experimental)
 

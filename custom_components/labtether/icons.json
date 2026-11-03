@@ -1,0 +1,37 @@
+{
+  "entity": {
+    "sensor": {
+      "devices": {
+        "default": "mdi:server-network"
+      },
+      "active_alerts": {
+        "default": "mdi:alert-circle",
+        "state": {
+          "0": "mdi:check-circle-outline"
+        }
+      },
+      "cpu_usage": {
+        "default": "mdi:cpu-64-bit"
+      },
+      "memory_usage": {
+        "default": "mdi:memory"
+      },
+      "disk_usage": {
+        "default": "mdi:harddisk"
+      }
+    },
+    "switch": {
+      "power": {
+        "default": "mdi:power",
+        "state": {
+          "off": "mdi:power-off"
+        }
+      }
+    }
+  },
+  "services": {
+    "run_action": {
+      "service": "mdi:play-circle-outline"
+    }
+  }
+}

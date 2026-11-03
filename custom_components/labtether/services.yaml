@@ -1,35 +1,35 @@
 run_action:
-  name: Run Action
-  description: Run an approved power action on a LabTether-managed asset. Administrator only.
+  name: Run action
+  description: Start or stop a VM or container through LabTether. Administrators only.
   fields:
     asset_id:
-      name: Asset ID
-      description: The LabTether asset ID to run the action on.
+      name: Device ID
+      description: The device's LabTether ID, for example pve-vm-100.
       required: true
       selector:
         text:
     action:
       name: Action
-      description: "An approved start/stop action: vm.start/vm.stop for VMs, ct.start/ct.stop for Proxmox containers, or container.start/container.stop for Docker."
+      description: "vm.start or vm.stop for VMs, ct.start or ct.stop for Proxmox containers, container.start or container.stop for Docker containers. On Proxmox, vm.shutdown and ct.shutdown ask the guest to shut down."
       required: true
       selector:
         text:
     entry_id:
-      name: Hub entry ID
-      description: "The Home Assistant config entry ID for the target LabTether hub. Required when more than one hub exposes the same asset ID."
+      name: Hub
+      description: The LabTether hub that has the device. Needed when more than one hub has the same device ID.
       required: false
       selector:
         config_entry:
           integration: labtether
     connector_id:
-      name: Connector ID
-      description: "The connector that owns the action (e.g. proxmox, truenas)."
+      name: Connector
+      description: "The connector that runs the action, for example proxmox or truenas. It must match the device's source."
       required: false
       selector:
         text:
     params:
       name: Parameters
-      description: Optional parameters for the action.
+      description: Not supported. Calls with parameters are rejected.
       required: false
       selector:
         object:

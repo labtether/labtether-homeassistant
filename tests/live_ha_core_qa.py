@@ -150,16 +150,16 @@ class LiveHAQA(LiveHAClient):
         snapshot = await self.surface_snapshot()
         expected = {
             "LabTether Hub Status",
-            "LabTether Hub Total Assets",
-            "LabTether Hub Active Alerts",
+            "LabTether Hub Devices",
+            "LabTether Hub Active alerts",
         }
         for asset_name in ASSET_NAMES:
             expected.update(
                 {
                     f"{asset_name} Status",
-                    f"{asset_name} CPU Usage",
-                    f"{asset_name} Memory Usage",
-                    f"{asset_name} Disk Usage",
+                    f"{asset_name} CPU usage",
+                    f"{asset_name} Memory usage",
+                    f"{asset_name} Disk usage",
                     f"{asset_name} Power",
                 }
             )
@@ -174,21 +174,21 @@ class LiveHAQA(LiveHAClient):
             raise AssertionError(
                 f"hub status not ready: {snapshot['LabTether Hub Status']}"
             )
-        if snapshot["LabTether Hub Total Assets"]["state"] != "2":
+        if snapshot["LabTether Hub Devices"]["state"] != "2":
             raise AssertionError(
-                f"total-assets sensor had unexpected state {snapshot['LabTether Hub Total Assets']}"
+                f"devices sensor had unexpected state {snapshot['LabTether Hub Devices']}"
             )
-        if snapshot["LabTether Hub Active Alerts"]["state"] != "2":
+        if snapshot["LabTether Hub Active alerts"]["state"] != "2":
             raise AssertionError(
-                f"active-alerts sensor had unexpected state {snapshot['LabTether Hub Active Alerts']}"
+                f"active-alerts sensor had unexpected state {snapshot['LabTether Hub Active alerts']}"
             )
         expected_metrics = {
-            "LTQA Proxmox VM CPU Usage": 11.5,
-            "LTQA Proxmox VM Memory Usage": 22.5,
-            "LTQA Proxmox VM Disk Usage": 33.5,
-            "LTQA Docker Container CPU Usage": 44.5,
-            "LTQA Docker Container Memory Usage": 55.5,
-            "LTQA Docker Container Disk Usage": 66.5,
+            "LTQA Proxmox VM CPU usage": 11.5,
+            "LTQA Proxmox VM Memory usage": 22.5,
+            "LTQA Proxmox VM Disk usage": 33.5,
+            "LTQA Docker Container CPU usage": 44.5,
+            "LTQA Docker Container Memory usage": 55.5,
+            "LTQA Docker Container Disk usage": 66.5,
         }
         for name, value in expected_metrics.items():
             if abs(float(snapshot[name]["state"]) - value) > 0.001:
@@ -349,8 +349,8 @@ class LiveHAQA(LiveHAClient):
             snapshot = await self.surface_snapshot()
             registry_entries = await self.entity_registry_entries()
             no_sensors = not any(
-                name.endswith(("CPU Usage", "Memory Usage", "Disk Usage"))
-                or name in {"LabTether Hub Total Assets", "LabTether Hub Active Alerts"}
+                name.endswith(("CPU usage", "Memory usage", "Disk usage"))
+                or name in {"LabTether Hub Devices", "LabTether Hub Active alerts"}
                 for name in snapshot
             )
             no_registry_ghosts = not any(

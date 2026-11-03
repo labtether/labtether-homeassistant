@@ -1,4 +1,4 @@
-# LabTether Home Assistant Add-on
+# LabTether Home Assistant add-on
 
 Add `https://github.com/labtether/labtether-homeassistant#homeassistant-addon-repo`
 under **Settings > Apps > App store** (**Settings > Add-ons > Add-on Store**
@@ -49,7 +49,7 @@ For the LabTether integration on the same Home Assistant, use the same
   after you trust its certificate authority.
 - `auto_generate_credentials`: when enabled, missing required service credentials and first-run setup token are generated securely.
 
-## Generated Credentials
+## Generated credentials
 
 When credentials are generated automatically, they are written to:
 
@@ -91,12 +91,12 @@ external `database_url`, back up that database separately.
 
 ## Runtime isolation
 
-The add-on entrypoint performs only the mounted-volume permission bootstrap and
-optional local Postgres startup as root. It then starts the LabTether hub as the
-dedicated `labtether` account (UID/GID `10001`). Root-consumed state uses strict
-JSON under `/data/labtether-addon-root`; only the one-time setup-token directory
-is writable by the hub. The hub can also write its install, certificate,
-agent-cache, recording, CA-share, and private runtime directories.
+The add-on start script runs as root only to set permissions on the mounted
+volumes and to start the optional local Postgres. It then starts the LabTether
+hub as the `labtether` account (UID/GID `10001`). The state that root reads is
+strict JSON under `/data/labtether-addon-root`; only the one-time setup-token
+directory is writable by the hub. The hub can also write its install,
+certificate, agent-cache, recording, CA-share, and private runtime directories.
 `/data/postgres` remains owned by the separate `postgres` account, and the
 `/data` volume root remains root-owned and non-listable.
 
@@ -119,5 +119,6 @@ The internal HTTP redirect listener on port `8080` is not published by default.
 
 ## Notes
 
-This add-on runs the LabTether Hub and its web console.
-For Home Assistant entities and services, install the custom integration from this repository's `custom_components/labtether` directory.
+This add-on runs the LabTether Hub and its web console. For LabTether devices,
+sensors and power switches in Home Assistant, install the LabTether integration
+from this repository's `custom_components/labtether` folder.

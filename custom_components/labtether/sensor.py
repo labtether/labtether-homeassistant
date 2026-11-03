@@ -85,14 +85,14 @@ async def async_setup_entry(
 
 
 class LabTetherTotalAssetsSensor(LabTetherHubEntity, SensorEntity):
-    """Sensor showing total number of assets."""
+    """Sensor showing the number of devices on the hub."""
 
-    _attr_name = "Total Assets"
-    _attr_icon = "mdi:server-network"
+    _attr_translation_key = "devices"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: LabTetherCoordinator) -> None:
         super().__init__(coordinator)
+        # Keep the 1.x unique_id so existing entity IDs survive the rename.
         self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_hub_total_assets"
 
     @property
@@ -103,8 +103,7 @@ class LabTetherTotalAssetsSensor(LabTetherHubEntity, SensorEntity):
 class LabTetherActiveAlertsSensor(LabTetherHubEntity, SensorEntity):
     """Sensor showing number of firing alerts."""
 
-    _attr_name = "Active Alerts"
-    _attr_icon = "mdi:alert-circle"
+    _attr_translation_key = "active_alerts"
     _attr_state_class = SensorStateClass.MEASUREMENT
 
     def __init__(self, coordinator: LabTetherCoordinator) -> None:
@@ -136,22 +135,19 @@ class _LabTetherMetricSensor(LabTetherEntity, SensorEntity):
 class LabTetherCpuSensor(_LabTetherMetricSensor):
     """CPU usage sensor."""
 
-    _attr_name = "CPU Usage"
-    _attr_icon = "mdi:cpu-64-bit"
+    _attr_translation_key = "cpu_usage"
     _metric_key = "cpu_used_percent"
 
 
 class LabTetherMemorySensor(_LabTetherMetricSensor):
     """Memory usage sensor."""
 
-    _attr_name = "Memory Usage"
-    _attr_icon = "mdi:memory"
+    _attr_translation_key = "memory_usage"
     _metric_key = "memory_used_percent"
 
 
 class LabTetherDiskSensor(_LabTetherMetricSensor):
     """Disk usage sensor."""
 
-    _attr_name = "Disk Usage"
-    _attr_icon = "mdi:harddisk"
+    _attr_translation_key = "disk_usage"
     _metric_key = "disk_used_percent"
