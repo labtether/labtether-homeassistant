@@ -31,7 +31,7 @@ alert fires.
   without mirroring itself.
 
 You need Home Assistant 2024.12.0 or newer. It is tested with Home Assistant
-Core 2026.7.2.
+Core 2026.10.2 and 2026.11.
 
 ## Install
 
