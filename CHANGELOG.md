@@ -39,6 +39,9 @@ Released with LabTether Hub 2.0.0.
   or stopped. They kept showing the last values for up to an hour.
 - **Visit** on the LabTether Hub device opens the web console the Hub names.
   It opened the Hub API address, which shows only JSON.
+- Home Assistant 2026.3 and newer show the LabTether icon for the integration
+  and its devices. They showed a placeholder: the icon file was not in the
+  `brand` folder those versions read for custom integrations.
 
 ### Add-on
 
