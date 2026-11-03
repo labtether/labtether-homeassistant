@@ -111,7 +111,9 @@ class LabTetherEntity(CoordinatorEntity[LabTetherCoordinator]):
 
         info = DeviceInfo(
             identifiers={(DOMAIN, asset_registry_key(entry_id, self._asset_id))},
-            name=str(asset.get("name", self._asset_id)),
+            # An empty name would make Home Assistant name the device after
+            # the config entry, so fall back to the Hub's ID for the device.
+            name=str(asset.get("name") or "").strip() or self._asset_id,
             manufacturer="LabTether",
             model=_device_model(asset),
             sw_version=_software_version(asset),

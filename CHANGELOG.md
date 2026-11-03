@@ -42,6 +42,15 @@ Released with LabTether Hub 2.0.0.
 - Home Assistant 2026.3 and newer show the LabTether icon for the integration
   and its devices. They showed a placeholder: the icon file was not in the
   `brand` folder those versions read for custom integrations.
+- A power switch shows the state you asked for while LabTether carries out the
+  action, until the Hub reports the new state or two minutes pass. It flipped
+  back to the old state until the next poll, so it looked as if nothing
+  happened.
+- Errors from power switches and `labtether.run_action` show the Hub's own
+  message, such as "Actions are blocked by active maintenance windows". They
+  showed "API request failed (HTTP 409)".
+- A Hub device without a name, such as the Docker group an agent reports, is
+  named by its LabTether ID. Home Assistant named it after the config entry.
 
 ### Add-on
 

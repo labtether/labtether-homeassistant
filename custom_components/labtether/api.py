@@ -31,6 +31,8 @@ _LOGGER = logging.getLogger(__name__)
 MAX_API_RESPONSE_BYTES = 8 * 1024 * 1024
 API_RESPONSE_CHUNK_BYTES = 64 * 1024
 API_REQUEST_TIMEOUT_SECONDS = 30
+HUB_ERROR_BODY_BYTES = 4096
+HUB_ERROR_TEXT_CHARS = 200
 ALERT_PAGE_SIZE = 500
 MAX_ALERT_INSTANCES = 10000
 
@@ -121,6 +123,10 @@ class LabTetherPermissionError(LabTetherApiError):
     """The Hub accepted the API key but refused the request (missing scope)."""
 
 
+class LabTetherHubError(LabTetherApiError):
+    """The Hub answered with an error; the message is the Hub's own text."""
+
+
 class LabTetherApiClient:
     """Client to interact with the LabTether REST API."""
 
@@ -195,6 +201,23 @@ class LabTetherApiClient:
             raise LabTetherApiError("API returned an invalid response object")
         return payload
 
+    @staticmethod
+    async def _hub_error_text(resp) -> str:
+        """Return the Hub's error message, or a plain line without a status code."""
+        try:
+            if resp.content_type == "application/json":
+                payload = json.loads(await resp.content.read(HUB_ERROR_BODY_BYTES))
+                message = payload.get("error") if isinstance(payload, dict) else None
+                if isinstance(message, str):
+                    message = " ".join(message.split())[:HUB_ERROR_TEXT_CHARS]
+                    if message and message.isprintable():
+                        return message[:1].upper() + message[1:]
+        except (ClientError, asyncio.TimeoutError, ValueError):
+            pass
+        if resp.status >= 500:
+            return "The hub had an internal error"
+        return "The hub refused the request"
+
     async def _request(
         self,
         method: str,
@@ -219,7 +242,8 @@ class LabTetherApiClient:
                         "The API key is missing a scope this request needs"
                     )
                 if resp.status < 200 or resp.status >= 300:
-                    raise LabTetherApiError(f"API request failed (HTTP {resp.status})")
+                    _LOGGER.debug("LabTether %s %s answered HTTP %s", method, path, resp.status)
+                    raise LabTetherHubError(await self._hub_error_text(resp))
                 return await self._read_bounded_json_object(resp)
         except ClientSSLError as err:
             raise LabTetherApiError("TLS certificate verification failed") from err

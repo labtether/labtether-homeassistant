@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import time
 
 from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
@@ -26,6 +27,12 @@ from .entity import LabTetherEntity
 
 _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 1
+
+# LabTether runs a power action in the background: a Docker container changes
+# within seconds, a VM after its guest shuts down. Until the Hub reports the new
+# state (or this long passes) the switch shows the state the user asked for,
+# instead of flipping back to the old one until the next poll.
+PENDING_POWER_SECONDS = 120
 
 # Map asset source to connector ID and action naming. Proxmox "stop" is the
 # Hub's force stop, so the switch asks the guest to shut down instead; force
@@ -89,15 +96,33 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
     def __init__(self, coordinator: LabTetherCoordinator, asset_id: str) -> None:
         super().__init__(coordinator, asset_id)
         self._attr_unique_id = f"{DOMAIN}_{coordinator.entry_id}_{asset_id}_power"
+        self._pending_on: bool | None = None
+        self._pending_until = 0.0
 
-    @property
-    def is_on(self) -> bool:
-        """Return True if the asset is running."""
+    def _reported_on(self) -> bool:
+        """Return True if the Hub reports the asset as running."""
         asset = self._asset
         if asset is None:
             return False
         status = str(asset.get("status", "")).strip().lower()
         return status in ACTIVE_ASSET_STATUSES
+
+    @property
+    def is_on(self) -> bool:
+        """Return the requested state while an action runs, else the Hub's."""
+        if self._pending_on is not None and time.monotonic() < self._pending_until:
+            return self._pending_on
+        return self._reported_on()
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Stop showing the requested state once the Hub reports it or time is up."""
+        if self._pending_on is not None and (
+            self._reported_on() == self._pending_on
+            or time.monotonic() >= self._pending_until
+        ):
+            self._pending_on = None
+        super()._handle_coordinator_update()
 
     async def async_turn_on(self, **kwargs) -> None:
         """Start the VM/container."""
@@ -123,6 +148,9 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
             ) from err
         except LabTetherApiError as err:
             raise HomeAssistantError(f"LabTether could not change the power state: {err}") from err
+        self._pending_on = verb == "start"
+        self._pending_until = time.monotonic() + PENDING_POWER_SECONDS
+        self.async_write_ha_state()
         await self.coordinator.async_request_refresh()
 
     async def _async_require_admin(self) -> None:

@@ -14,6 +14,7 @@ from .api import (
     HubCACertificateError,
     LabTetherApiClient,
     LabTetherApiError,
+    LabTetherHubError,
     LabTetherPermissionError,
     hub_origin_is_valid,
 )
@@ -200,6 +201,9 @@ class LabTetherConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     def _classify_api_error(err: LabTetherApiError) -> str:
         if isinstance(err, LabTetherPermissionError):
             return "missing_scope"
+        if isinstance(err, LabTetherHubError):
+            # The Hub's own words never mean a key or TLS problem here.
+            return "cannot_connect"
         message = str(err).lower()
         if "authentication failed" in message:
             return "invalid_auth"
