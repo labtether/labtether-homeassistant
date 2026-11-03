@@ -404,6 +404,18 @@ if [[ "${external_url_ok}" != "true" ]]; then
   echo "hub did not offer the external_url option or name it in its certificate" >&2
   exit 1
 fi
+# The Hub's root names the console at the external host, so Home Assistant's
+# Visit link and other clients open the HTTPS console, not plain http.
+if ! docker exec --interactive --user 10001:10001 "${CONTAINER_NAME}" \
+  bash -se -o pipefail -- "${OPTION_TEST_HOST}" <<'SH'
+curl --disable --silent --fail --max-time 5 --noproxy '*' --max-redirs 0 \
+  --cacert /ca/ca.crt --resolve "$1:8443:127.0.0.1" "https://$1:8443/" \
+  | jq --exit-status --arg expected "https://$1:3000" '.console_url == $expected' >/dev/null
+SH
+then
+  echo "hub root did not name the HTTPS console at the external_url host" >&2
+  exit 1
+fi
 
 # A used setup token with no owner in the database, as with a new empty
 # database_url, must not stop the Hub from starting: the add-on issues a new
