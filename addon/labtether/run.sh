@@ -559,8 +559,8 @@ export HOME="${HUB_HOME_DIR}"
 export TMPDIR="${HUB_RUNTIME_DIR}/tmp"
 
 if [[ "${SETUP_TOKEN_GENERATED}" == "true" ]]; then
-  log "generated a one-time first-run setup token at ${SETUP_TOKEN_FILE}; token values are never written to logs"
-  log "configure labtether_setup_token before first start when the token must be known without local file access"
+  log "created a one-time setup token for the console's owner setup screen; logs never show token values"
+  log "to choose the token, set labtether_setup_token on the add-on's Configuration tab and restart the add-on"
 fi
 
 log "starting LabTether hub as ${HUB_USER} (uid=$(id -u "${HUB_USER}"), tls_mode=${LABTETHER_TLS_MODE})"
