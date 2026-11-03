@@ -40,7 +40,7 @@ def test_setup_token_is_one_time_file_backed_secret():
     assert 'export LABTETHER_SETUP_TOKEN_FILE="${SETUP_TOKEN_FILE}"' in run_script
     assert 'unset LABTETHER_SETUP_TOKEN_FILE LABTETHER_SETUP_TOKEN' in run_script
     assert 'first-run setup token: ${LABTETHER_SETUP_TOKEN}' not in run_script
-    assert 'token values are never written to logs' in run_script
+    assert 'logs never show token values' in run_script
 
 
 def test_hub_drops_to_dedicated_nonroot_user_with_scoped_writable_paths():
