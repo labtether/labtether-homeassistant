@@ -345,6 +345,16 @@ docker exec "${CONTAINER_NAME}" sh -c '
   jq --arg url "https://$1:8443" ".external_url = \$url" /data/options.json > /data/options.next
   chmod 600 /data/options.next && mv /data/options.next /data/options.json
 ' sh "${OPTION_TEST_HOST}"
+# A normal stop (what the Supervisor does) must stop the Hub before its
+# bundled Postgres, so the Hub can release its runtime lease.
+docker stop --time 20 "${CONTAINER_NAME}" >/dev/null
+stop_log="$(docker logs "${CONTAINER_NAME}" 2>&1)"
+if grep -q "live runtime lease release failed" <<<"${stop_log}" \
+  || ! grep -q "stopping LabTether hub" <<<"${stop_log}"; then
+  echo "add-on stop did not stop the Hub before Postgres" >&2
+  tail -n 30 <<<"${stop_log}" >&2
+  exit 1
+fi
 docker rm -f "${CONTAINER_NAME}" >/dev/null
 docker run --detach \
   --name "${CONTAINER_NAME}" \

@@ -37,6 +37,10 @@ Changes:
   set it before the first start or to read a file in the add-on's `/data`,
   which Home Assistant does not show. Setting it after the first start works.
 
+- Stopping the add-on stops the Hub first, then the bundled Postgres. Both
+  got the stop signal together, so the log showed "live runtime lease release
+  failed" at every stop.
+
 ## 1.7.1
 
 Runs LabTether Hub 1.7.1.

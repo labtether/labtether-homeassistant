@@ -12,12 +12,16 @@ from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
+    CPU_METRIC,
+    DISK_METRIC,
     DOMAIN,
     INACTIVE_ASSET_STATUSES,
+    MEMORY_METRIC,
     TELEMETRY_KINDS,
     CONF_IMPORT_SENSORS,
     DEFAULT_IMPORT_SENSORS,
     entry_pref,
+    usage_metrics,
 )
 from .coordinator import LabTetherCoordinator
 from .entity import LabTetherEntity, LabTetherHubEntity
@@ -51,14 +55,9 @@ async def async_setup_entry(
         }
 
     for asset in coordinator.data.assets:
-        asset_id = asset["id"]
-        asset_type = asset.get("type", "")
-
-        if asset_type in TELEMETRY_KINDS:
-            entities.append(LabTetherCpuSensor(coordinator, asset_id))
-            entities.append(LabTetherMemorySensor(coordinator, asset_id))
-            entities.append(LabTetherDiskSensor(coordinator, asset_id))
-            known_asset_ids.add(asset_id)
+        if asset.get("type", "") in TELEMETRY_KINDS:
+            entities.extend(_usage_sensors(coordinator, asset))
+            known_asset_ids.add(asset["id"])
 
     async_add_entities(entities)
 
@@ -74,15 +73,21 @@ async def async_setup_entry(
         new_entities: list[SensorEntity] = []
         for asset_id in new_asset_ids:
             new_entities.extend(
-                [
-                    LabTetherCpuSensor(coordinator, asset_id),
-                    LabTetherMemorySensor(coordinator, asset_id),
-                    LabTetherDiskSensor(coordinator, asset_id),
-                ]
+                _usage_sensors(coordinator, coordinator.data.get_asset(asset_id))
             )
         async_add_entities(new_entities)
 
     entry.async_on_unload(coordinator.async_add_listener(_async_add_new_entities))
+
+
+def _usage_sensors(coordinator: LabTetherCoordinator, asset) -> list[SensorEntity]:
+    """One sensor per usage metric the Hub sends for this asset's kind."""
+    metrics = usage_metrics(asset.get("type", ""))
+    return [
+        sensor_class(coordinator, asset["id"])
+        for sensor_class in (LabTetherCpuSensor, LabTetherMemorySensor, LabTetherDiskSensor)
+        if sensor_class._metric_key in metrics
+    ]
 
 
 class LabTetherTotalAssetsSensor(LabTetherHubEntity, SensorEntity):
@@ -147,18 +152,18 @@ class LabTetherCpuSensor(_LabTetherMetricSensor):
     """CPU usage sensor."""
 
     _attr_translation_key = "cpu_usage"
-    _metric_key = "cpu_used_percent"
+    _metric_key = CPU_METRIC
 
 
 class LabTetherMemorySensor(_LabTetherMetricSensor):
     """Memory usage sensor."""
 
     _attr_translation_key = "memory_usage"
-    _metric_key = "memory_used_percent"
+    _metric_key = MEMORY_METRIC
 
 
 class LabTetherDiskSensor(_LabTetherMetricSensor):
     """Disk usage sensor."""
 
     _attr_translation_key = "disk_usage"
-    _metric_key = "disk_used_percent"
+    _metric_key = DISK_METRIC

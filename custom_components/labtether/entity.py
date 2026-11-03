@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN, asset_registry_key, hub_registry_key
+from .const import DEFAULT_HUB_DEVICE_NAME, DOMAIN, asset_registry_key, hub_registry_key
 from .coordinator import LabTetherCoordinator
 
 # DeviceInfo lists its keys like a TypedDict, also after it became a dataclass.
@@ -140,9 +140,10 @@ class LabTetherHubEntity(CoordinatorEntity[LabTetherCoordinator]):
     @property
     def device_info(self) -> DeviceInfo:
         """Return device info for the hub."""
+        hub_name = getattr(self.coordinator, "hub_name", None)
         return DeviceInfo(
             identifiers={(DOMAIN, hub_registry_key(self.coordinator.entry_id))},
-            name="LabTether Hub",
+            name=hub_name if isinstance(hub_name, str) and hub_name else DEFAULT_HUB_DEVICE_NAME,
             manufacturer="LabTether",
             model="Hub",
             configuration_url=self._configuration_url(),

@@ -63,15 +63,37 @@ INACTIVE_ASSET_STATUSES = frozenset({"offline", "stopped", "exited", "down", "de
 # Asset source to exclude (prevents circular entity mirroring)
 EXCLUDED_SOURCES = frozenset({"home-assistant", "homeassistant"})
 
-# Asset kinds that typically have telemetry
-TELEMETRY_KINDS = {
-    "host",
-    "hypervisor-node",
-    "vm",
-    "container",
-    "docker-container",
-    "container-host",
+CPU_METRIC = "cpu_used_percent"
+MEMORY_METRIC = "memory_used_percent"
+DISK_METRIC = "disk_used_percent"
+_ALL_USAGE_METRICS = frozenset({CPU_METRIC, MEMORY_METRIC, DISK_METRIC})
+
+# The usage metrics the Hub sends for each asset kind. A Docker host sends none
+# (the agent on that machine reports them for its host device) and a Docker
+# container sends no disk value, so those sensors would stay unknown.
+USAGE_METRICS_BY_KIND = {
+    "host": _ALL_USAGE_METRICS,
+    "hypervisor-node": _ALL_USAGE_METRICS,
+    "vm": _ALL_USAGE_METRICS,
+    "container": _ALL_USAGE_METRICS,
+    "docker-container": frozenset({CPU_METRIC, MEMORY_METRIC}),
 }
+
+# Asset kinds that get at least one usage sensor
+TELEMETRY_KINDS = frozenset(USAGE_METRICS_BY_KIND)
+
+
+def usage_metrics(kind) -> frozenset[str]:
+    """Return the usage metrics the Hub sends for an asset kind."""
+    return USAGE_METRICS_BY_KIND.get(kind, frozenset())
+
+
+DEFAULT_HUB_DEVICE_NAME = "LabTether Hub"
+
+
+def hub_device_name(entry) -> str:
+    """The Name typed at setup, so two hubs are told apart, else LabTether Hub."""
+    return str(entry.data.get(CONF_NAME) or "").strip() or DEFAULT_HUB_DEVICE_NAME
 
 
 def entry_pref(entry, key: str, default):
