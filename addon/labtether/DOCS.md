@@ -44,9 +44,11 @@ For the LabTether integration on the same Home Assistant, use the same
 - `external_url`: the address other machines use to reach the Hub, for
   example `https://192.168.1.20:8443` or `https://homeassistant.local:8443`
   (`https://`, a host and an optional port, no path). The Hub adds that host to
-  its certificate and offers this address in **Add device**. Leave it blank and
-  browsers and agents on other machines refuse the Hub's certificate, even
-  after you trust its certificate authority.
+  its certificate and offers this address in **Add device**. With the default
+  `tls_mode`, the Hub also names `https://<that host>:3000` as its console
+  address, which the LabTether integration's **Visit** link opens. Leave it
+  blank and browsers and agents on other machines refuse the Hub's
+  certificate, even after you trust its certificate authority.
 - `auto_generate_credentials`: when enabled, missing required service credentials and first-run setup token are generated securely.
 
 ## Generated credentials

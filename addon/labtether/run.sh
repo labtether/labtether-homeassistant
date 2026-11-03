@@ -510,6 +510,17 @@ external_url_pattern='^https://[]A-Za-z0-9.:[-]+/?$'
 if [[ -n "${EXTERNAL_URL_OPT}" ]]; then
   if [[ "${EXTERNAL_URL_OPT}" =~ ${external_url_pattern} ]]; then
     export LABTETHER_EXTERNAL_URL="${EXTERNAL_URL_OPT%/}"
+    # The console is HTTPS on port 3000 of the same host. The Hub names this
+    # address on its root page, and the integration's Visit link opens it.
+    if [[ "${TLS_MODE_OPT}" != "disabled" ]]; then
+      external_authority="${LABTETHER_EXTERNAL_URL#https://}"
+      if [[ "${external_authority}" == \[* ]]; then
+        external_host="${external_authority%%]*}]"
+      else
+        external_host="${external_authority%%:*}"
+      fi
+      export LABTETHER_CONSOLE_URL="https://${external_host}:3000"
+    fi
   else
     log "external_url ignored: use https://host or https://host:port with no path"
   fi

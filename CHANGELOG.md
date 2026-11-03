@@ -54,6 +54,10 @@ Released with LabTether Hub 2.0.0.
   stopped. The add-on issues a new setup token at start.
 - The add-on description and docs use plain words, and the add-on README lists
   the `external_url` option.
+- Options have names and descriptions on the add-on's **Configuration** tab
+  instead of raw keys such as `labtether_owner_token`.
+- With `external_url` set, the Hub names its HTTPS console at that host, so
+  the integration's **Visit** link opens it.
 
 ### Project
 

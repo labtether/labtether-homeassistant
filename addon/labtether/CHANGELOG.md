@@ -23,6 +23,12 @@ Changes:
 - The add-on description and docs use plain words, and the add-on README lists
   the `external_url` option.
 
+- The add-on's options have names and descriptions on its **Configuration**
+  tab. It showed the raw option keys, such as `labtether_owner_token`.
+
+- With `external_url` set, the Hub names its HTTPS console at that host on
+  port 3000. It named `http://...:3000`, which the add-on's console refuses.
+
 ## 1.7.1
 
 Runs LabTether Hub 1.7.1.
