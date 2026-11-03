@@ -18,7 +18,14 @@ wait_gone() { # pid, tenths of a second
   ! kill -0 "${pid}" 2>/dev/null
 }
 
-hub_pid="$(pgrep -u labtether -x labtether | head -n 1)"
+# The Hub runs as UID 10001 (run.sh drops to it before exec).
+hub_pid=""
+for pid in $(pidof labtether 2>/dev/null); do
+  if [[ "$(awk '/^Uid:/ { print $2; exit }' "/proc/${pid}/status" 2>/dev/null)" == "10001" ]]; then
+    hub_pid="${pid}"
+    break
+  fi
+done
 if [[ -n "${hub_pid}" ]]; then
   log "stopping LabTether hub"
   kill -TERM "${hub_pid}" 2>/dev/null || true
