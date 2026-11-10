@@ -35,15 +35,17 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up LabTether sensors."""
-    if not entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS):
-        return
-
     coordinator: LabTetherCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
+    # The hub's Devices and Active alerts sensors are always created; the
+    # "CPU, memory and disk sensors" option covers only the usage sensors.
     entities: list[SensorEntity] = [
         LabTetherTotalAssetsSensor(coordinator),
         LabTetherActiveAlertsSensor(coordinator),
     ]
+    if not entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS):
+        async_add_entities(entities)
+        return
 
     known_asset_ids: set[str] = set()
 

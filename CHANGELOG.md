@@ -57,6 +57,8 @@ Released with LabTether Hub 2.0.0.
 - Docker hosts get no CPU, memory or disk sensors and Docker containers no disk
   sensor: the Hub sends no such values for them, so these sensors stayed
   unknown. Existing ones are removed at the next start.
+- The hub's **Devices** and **Active alerts** sensors stay when **CPU, memory
+  and disk sensors** is turned off. That option removed them too.
 
 ### Add-on
 

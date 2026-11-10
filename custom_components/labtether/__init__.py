@@ -196,13 +196,12 @@ def _reconcile_registry_entries(
 
     if entry_pref(entry, CONF_IMPORT_BINARY_SENSORS, DEFAULT_IMPORT_BINARY_SENSORS):
         expected_unique_ids.add(f"{DOMAIN}_{entry_id}_hub_status")
-    if entry_pref(entry, CONF_IMPORT_SENSORS, DEFAULT_IMPORT_SENSORS):
-        expected_unique_ids.update(
-            {
-                f"{DOMAIN}_{entry_id}_hub_total_assets",
-                f"{DOMAIN}_{entry_id}_hub_active_alerts",
-            }
-        )
+    expected_unique_ids.update(
+        {
+            f"{DOMAIN}_{entry_id}_hub_total_assets",
+            f"{DOMAIN}_{entry_id}_hub_active_alerts",
+        }
+    )
 
     for asset in coordinator.data.assets:
         asset_id = asset["id"]

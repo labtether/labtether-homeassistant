@@ -354,9 +354,9 @@ def test_reconcile_registry_entries_removes_stale_and_disabled_records():
 
     integration._reconcile_registry_entries(hass, entry, coordinator)
 
+    # The hub's device count stays: the sensors option covers usage sensors only.
     assert entity_registry.async_remove.call_args_list == [
         call("sensor.stale_cpu"),
-        call("sensor.hub_total_assets"),
     ]
     device_registry.async_remove_device.assert_called_once_with("stale-device")
 
