@@ -182,3 +182,21 @@ async def test_usage_sensors_only_for_metrics_the_hub_sends():
         ("h1", "cpu_used_percent"), ("h1", "memory_used_percent"), ("h1", "disk_used_percent"),
         ("docker-ct-h1-abc", "cpu_used_percent"), ("docker-ct-h1-abc", "memory_used_percent"),
     }
+
+
+@pytest.mark.asyncio
+async def test_hub_sensors_stay_when_usage_sensors_are_off():
+    """Turning off "CPU, memory and disk sensors" removed the hub's Devices and
+    Active alerts sensors too, which that option does not name."""
+    coord = _make_coordinator([
+        {"id": "h1", "type": "host", "source": "agent", "status": "online"},
+    ], metrics={"h1": {"cpu_used_percent": 5.0}}, alerts=2)
+    coord.async_add_listener = MagicMock(return_value=lambda: None)
+    hass = MagicMock()
+    entry = MagicMock(entry_id="entry-1", options={"import_telemetry_sensors": False}, data={},
+                      async_on_unload=MagicMock())
+    hass.data = {"labtether": {"entry-1": {"coordinator": coord}}}
+    added = []
+    await async_setup_entry(hass, entry, added.extend)
+    assert {type(e) for e in added} == {LabTetherTotalAssetsSensor, LabTetherActiveAlertsSensor}
+    assert [e.native_value for e in added] == [1, 2]
