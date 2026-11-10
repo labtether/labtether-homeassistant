@@ -353,19 +353,28 @@ class LiveHAQA(LiveHAClient):
         async def disabled_surface() -> bool:
             snapshot = await self.surface_snapshot()
             registry_entries = await self.entity_registry_entries()
-            no_sensors = not any(
+            # The option covers usage sensors only; the hub's Devices and
+            # Active alerts sensors stay.
+            no_usage_sensors = not any(
                 name.endswith(("CPU usage", "Memory usage", "Disk usage"))
-                or name in {f"{self.hub_name} Devices", f"{self.hub_name} Active alerts"}
                 for name in snapshot
             )
+            hub_sensors_kept = {
+                f"{self.hub_name} Devices",
+                f"{self.hub_name} Active alerts",
+            } <= set(snapshot)
             no_registry_ghosts = not any(
                 entry.get("config_entry_id") == self.entry_id
                 and entry.get("platform") == "labtether"
                 and str(entry.get("entity_id", "")).startswith("sensor.")
+                and not str(entry.get("unique_id", "")).endswith(
+                    ("_hub_total_assets", "_hub_active_alerts")
+                )
                 for entry in registry_entries
             )
             return (
-                no_sensors
+                no_usage_sensors
+                and hub_sensors_kept
                 and no_registry_ghosts
                 and await self.service_registered(False)
             )
