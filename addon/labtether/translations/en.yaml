@@ -7,8 +7,8 @@ configuration:
   labtether_admin_password:
     name: Owner password
     description: >-
-      Creates the owner account with this password at first start. Leave it
-      empty to create the owner on the console's setup screen.
+      Creates the owner account, user name admin, with this password at first
+      start. Leave it empty to create the owner on the console's setup screen.
   labtether_setup_token:
     name: Setup token
     description: >-

@@ -31,7 +31,7 @@ For the LabTether integration on the same Home Assistant, use the same
 ## Configuration
 
 - `labtether_owner_token`: owner API token (optional when `auto_generate_credentials=true`)
-- `labtether_admin_password`: optional local admin password. Leave blank to use the one-time owner setup screen instead of creating the owner automatically.
+- `labtether_admin_password`: optional owner password. At first start the add-on creates the owner account with the user name `admin` and this password. Leave blank to use the one-time owner setup screen instead.
 - `labtether_setup_token`: optional one-time token for the owner setup screen. When blank, a fresh token is generated if `auto_generate_credentials=true`.
 - `encryption_key`: base64 key that decodes to 32 bytes (optional when `auto_generate_credentials=true`)
 - `database_url`: optional Postgres DSN. Leave blank to use bundled local Postgres in `/data/postgres`.
