@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Mapping
 
 from homeassistant.auth.permissions.const import POLICY_CONTROL
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
@@ -14,6 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     ACTIVE_ASSET_STATUSES,
+    INACTIVE_ASSET_STATUSES,
     DOMAIN,
     CONTROLLABLE_KINDS,
     POWER_ACTION_SOURCES,
@@ -106,6 +108,31 @@ class LabTetherPowerSwitch(LabTetherEntity, SwitchEntity):
             return False
         status = str(asset.get("status", "")).strip().lower()
         return status in ACTIVE_ASSET_STATUSES
+
+    @property
+    def available(self) -> bool:
+        """Unavailable while the Hub can't reach the device.
+
+        When a Docker host's agent goes away, the Hub marks its containers
+        offline but keeps the last state the agent reported. A container whose
+        last state is running is then not known to be off.
+        """
+        if not super().available:
+            return False
+        return not self._hub_lost_contact()
+
+    def _hub_lost_contact(self) -> bool:
+        asset = self._asset
+        if asset is None:
+            return False
+        status = str(asset.get("status", "")).strip().lower()
+        if status not in INACTIVE_ASSET_STATUSES:
+            return False
+        metadata = asset.get("metadata")
+        if not isinstance(metadata, Mapping):
+            return False
+        last_state = str(metadata.get("state", "")).strip().lower()
+        return last_state in ACTIVE_ASSET_STATUSES
 
     @property
     def is_on(self) -> bool:

@@ -46,6 +46,10 @@ Released with LabTether Hub 2.0.0.
   action, until the Hub reports the new state or two minutes pass. It flipped
   back to the old state until the next poll, so it looked as if nothing
   happened.
+- A Docker container's power switch is unavailable while its Docker host's
+  agent is away. It read off for a container that was still running, because
+  the Hub marks those containers offline. A container that really stopped
+  stays available and off.
 - Errors from power switches and `labtether.run_action` show the Hub's own
   message, such as "Actions are blocked by active maintenance windows". They
   showed "API request failed (HTTP 409)".
