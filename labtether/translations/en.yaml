@@ -1,0 +1,45 @@
+configuration:
+  labtether_owner_token:
+    name: Owner API token
+    description: >-
+      API token for the owner account. Leave it empty to have one created at
+      start when Create missing credentials is on.
+  labtether_admin_password:
+    name: Owner password
+    description: >-
+      Creates the owner account, user name admin, with this password at first
+      start. Leave it empty to create the owner on the console's setup screen.
+  labtether_setup_token:
+    name: Setup token
+    description: >-
+      One-time token for the console's owner setup screen. Leave it empty to
+      have one created when Create missing credentials is on.
+  encryption_key:
+    name: Encryption key
+    description: >-
+      Base64 key that decodes to 32 bytes. The Hub encrypts stored device
+      credentials with it. Keep a copy: without it, those credentials are lost.
+  database_url:
+    name: Database URL
+    description: >-
+      PostgreSQL connection string for your own database. Leave it empty to use
+      the database inside the add-on.
+  tls_mode:
+    name: TLS mode
+    description: >-
+      auto serves HTTPS with the Hub's own certificate authority. disabled
+      serves plain HTTP, for use behind your own HTTPS proxy.
+  external_url:
+    name: External URL
+    description: >-
+      The address other machines use to reach the Hub, for example
+      https://192.168.1.20:8443. The Hub adds this host to its certificate.
+  auto_generate_credentials:
+    name: Create missing credentials
+    description: >-
+      Creates a missing owner API token, encryption key or setup token at start
+      and saves them in /data/labtether-addon-root/generated-credentials.txt.
+network:
+  3000/tcp: Web console
+  8080/tcp: HTTP redirect and health check
+  8443/tcp: Hub API and agent connections
