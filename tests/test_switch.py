@@ -51,6 +51,27 @@ def test_power_switch_is_off_when_offline():
     assert switch.is_on is False
 
 
+def test_container_switch_is_unavailable_while_its_host_agent_is_away():
+    """With the Docker host's agent away the Hub marks a running container
+    offline but keeps its last state; the switch read off for a running
+    container. A container that really stopped stays available and off."""
+    away = {"id": "ct-1", "type": "docker-container", "source": "docker", "status": "offline",
+            "metadata": {"state": "running", "status": "Up 2 minutes"}}
+    stopped = {"id": "ct-2", "type": "docker-container", "source": "docker", "status": "offline",
+               "metadata": {"state": "exited", "status": "Exited (0) 5 seconds ago"}}
+    coord = _make_coordinator([away, stopped])
+
+    assert LabTetherPowerSwitch(coord, "ct-1").available is False
+    stopped_switch = LabTetherPowerSwitch(coord, "ct-2")
+    assert stopped_switch.available is True
+    assert stopped_switch.is_on is False
+
+    coord.data = replace(coord.data, assets=[{**away, "status": "online"}, stopped])
+    back = LabTetherPowerSwitch(coord, "ct-1")
+    assert back.available is True
+    assert back.is_on is True
+
+
 @pytest.mark.asyncio
 async def test_turn_on_calls_start_action():
     """Turning on should call vm.start action."""
