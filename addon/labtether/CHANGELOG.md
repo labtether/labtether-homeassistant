@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.0.1
+
+Runs LabTether Hub 2.0.1. The add-on's options and ports are the same as in
+2.0.0.
+
 ## 2.0.0
 
 Runs LabTether Hub 2.0.0, which has the new 2.0 web console. Ports are
