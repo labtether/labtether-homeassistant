@@ -3,6 +3,18 @@
 All notable changes to the LabTether Home Assistant integration and add-on.
 Add-on-only notes are also in [`addon/labtether/CHANGELOG.md`](addon/labtether/CHANGELOG.md).
 
+## 2.0.1
+
+Released with LabTether Hub 2.0.1.
+
+### Integration
+
+- No change since 2.0.0.
+
+### Add-on
+
+- Runs LabTether Hub 2.0.1.
+
 ## 2.0.0
 
 Released with LabTether Hub 2.0.0.
